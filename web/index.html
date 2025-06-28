@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LME News Watcher - Refinitivニュースモニタリング</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- ヘッダー -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-newspaper"></i> LME News Watcher</h1>
+                <div class="header-actions">
+                    <button id="refreshBtn" class="btn btn-primary">
+                        <i class="fas fa-sync-alt"></i> 更新
+                    </button>
+                    <button id="settingsBtn" class="btn btn-secondary">
+                        <i class="fas fa-cog"></i> 設定
+                    </button>
+                    <div class="status-indicator" id="statusIndicator">
+                        <span class="status-dot"></span>
+                        <span id="statusText">待機中</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- ナビゲーション -->
+        <nav class="nav-tabs">
+            <button class="nav-tab active" data-tab="latest">最新ニュース</button>
+            <button class="nav-tab" data-tab="archive">過去ニュース</button>
+            <button class="nav-tab" data-tab="manual">手動登録</button>
+            <button class="nav-tab" data-tab="stats">統計</button>
+        nav>
+
+        <!-- メインコンテンツ -->
+        <main class="main-content">
+            <!-- 最新ニュースタブ -->
+            <div id="latest-tab" class="tab-content active">
+                <div class="search-controls">
+                    <div class="search-row">
+                        <div class="search-group">
+                            <input type="text" id="searchKeyword" placeholder="キーワード検索..." class="search-input">
+                            <button id="searchBtn" class="btn btn-primary">
+                                <i class="fas fa-search"></i> 検索
+                            </button>
+                        </div>
+                        <div class="filter-group">
+                            <select id="sourceFilter" class="filter-select">
+                                <option value="">全ソース</option>
+                            </select>
+                            <select id="metalFilter" class="filter-select">
+                                <option value="">全金属</option>
+                            </select>
+                            <select id="typeFilter" class="filter-select">
+                                <option value="">全て</option>
+                                <option value="false">Refinitiv</option>
+                                <option value="true">手動登録</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="news-list" id="newsList">
+                    <div class="loading" id="loadingIndicator">
+                        <i class="fas fa-spinner fa-spin"></i> 読み込み中...
+                    </div>
+                </div>
+
+                <div class="pagination" id="pagination">
+                    <!-- ページネーション動的生成 -->
+                </div>
+            </div>
+
+            <!-- 過去ニュースタブ -->
+            <div id="archive-tab" class="tab-content">
+                <div class="archive-controls">
+                    <div class="date-range">
+                        <label>期間指定:</label>
+                        <input type="date" id="startDate" class="date-input">
+                        <span>〜</span>
+                        <input type="date" id="endDate" class="date-input">
+                        <button id="dateSearchBtn" class="btn btn-primary">検索</button>
+                    </div>
+                </div>
+                
+                <div class="archive-list" id="archiveList">
+                    <!-- 過去ニュース表示 -->
+                </div>
+            </div>
+
+            <!-- 手動登録タブ -->
+            <div id="manual-tab" class="tab-content">
+                <div class="manual-form">
+                    <h3>ニュース手動登録</h3>
+                    <form id="manualNewsForm">
+                        <div class="form-group">
+                            <label for="manualTitle">タイトル <span class="required">*</span></label>
+                            <input type="text" id="manualTitle" required maxlength="500" class="form-input">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="manualBody">本文 <span class="required">*</span></label>
+                            <textarea id="manualBody" required maxlength="10000" rows="10" class="form-textarea"></textarea>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="manualSource">ソース</label>
+                                <input type="text" id="manualSource" class="form-input" placeholder="例: 日経新聞">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="manualUrl">URL</label>
+                                <input type="url" id="manualUrl" class="form-input" placeholder="https://...">
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="manualPublishTime">公開日時</label>
+                                <input type="datetime-local" id="manualPublishTime" class="form-input">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="manualMetals">関連金属</label>
+                                <input type="text" id="manualMetals" class="form-input" placeholder="例: Copper, Aluminium">
+                            </div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-save"></i> 登録
+                            </button>
+                            <button type="reset" class="btn btn-secondary">
+                                <i class="fas fa-undo"></i> クリア
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 統計タブ -->
+            <div id="stats-tab" class="tab-content">
+                <div class="stats-dashboard">
+                    <h3>システム統計</h3>
+                    
+                    <div class="stats-cards">
+                        <div class="stat-card">
+                            <div class="stat-value" id="totalNewsCount">-</div>
+                            <div class="stat-label">総ニュース数</div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-value" id="todayNewsCount">-</div>
+                            <div class="stat-label">今日のニュース</div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-value" id="refinitivNewsCount">-</div>
+                            <div class="stat-label">Refinitivニュース</div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-value" id="manualNewsCount">-</div>
+                            <div class="stat-label">手動登録ニュース</div>
+                        </div>
+                    </div>
+                    
+                    <div class="system-info" id="systemInfo">
+                        <!-- システム情報表示 -->
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ニュース詳細モーダル -->
+    <div id="newsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">ニュース詳細</h3>
+                <button id="modalClose" class="modal-close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- ニュース詳細内容 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 設定モーダル -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>設定</h3>
+                <button id="settingsModalClose" class="modal-close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h4>自動更新</h4>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="autoRefreshEnabled">
+                        自動更新を有効にする
+                    </label>
+                    <div class="form-group">
+                        <label>更新間隔（秒）</label>
+                        <input type="number" id="autoRefreshInterval" min="30" max="3600" value="300" class="form-input">
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h4>表示設定</h4>
+                    <div class="form-group">
+                        <label>1ページあたりの表示件数</label>
+                        <select id="newsPerPage" class="form-select">
+                            <option value="25">25件</option>
+                            <option value="50" selected>50件</option>
+                            <option value="100">100件</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="settings-actions">
+                    <button id="saveSettingsBtn" class="btn btn-primary">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script src="/eel.js"></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+# NewsCollector - Required Packages
+# PostgreSQL/SQL Server対応のニュース収集システム
+
+# Core data processing
+pandas>=1.5.0
+numpy>=1.21.0
+
+# Refinitiv EIKON API
+eikon>=1.1.16
+
+# Database drivers
+psycopg2-binary>=2.9.0    # PostgreSQL
+pyodbc>=4.0.32            # SQL Server
+
+# UI Framework
+eel>=0.14.0               # Desktop app framework
+
+# Configuration and logging
+python-dotenv>=0.19.0
+
+# Optional: Enhanced functionality
+colorlog>=6.6.0           # Colored logging
+pytz>=2021.3             # Timezone handling
+schedule>=1.1.0          # Task scheduling
+
+# For .exe creation
+PyInstaller>=5.0          # Executable creation

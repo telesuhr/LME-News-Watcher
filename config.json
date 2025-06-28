@@ -1,0 +1,107 @@
+{
+  "eikon_api_key": "YOUR_EIKON_API_KEY_HERE",
+  
+  "database": {
+    "database_type": "postgresql",
+    "host": "localhost",
+    "port": 5432,
+    "database": "lme_reporting",
+    "user": "Yusuke",
+    "password": ""
+  },
+  
+  "news_settings": {
+    "enable_news_collection": true,
+    "comprehensive_mode": true,
+    "include_news_body": true,
+    "minimum_priority_score": 5,
+    "max_news_per_query": 50,
+    "max_queries_per_metal": 3,
+    "api_rate_limit_delay": 0.3,
+    
+    "target_metals": [
+      "Copper", "Aluminium", "Zinc", "Lead", "Nickel", "Tin"
+    ],
+    
+    "query_categories": {
+      "general_market": [
+        "LME", "london metal exchange", "base metals", "copper price",
+        "metal prices", "commodity market", "industrial metals"
+      ],
+      "china_economy": [
+        "china economy", "china PMI", "china manufacturing",
+        "chinese demand", "china copper", "chinese economic data"
+      ],
+      "supply_demand": [
+        "mine", "smelter", "inventory", "stockpile", "production",
+        "supply shortage", "demand outlook", "refinery"
+      ],
+      "market_disruption": [
+        "strike", "shutdown", "disruption", "force majeure",
+        "trade war", "tariff", "sanction", "export ban"
+      ]
+    },
+    
+    "priority_keywords": {
+      "high_priority": [
+        "strike", "shutdown", "disruption", "mine closure", "supply cut",
+        "trade war", "tariff", "sanction", "inventory surge", "shortage",
+        "force majeure", "production halt", "emergency", "crisis"
+      ],
+      "medium_priority": [
+        "price", "production", "demand", "export", "import", "inventory",
+        "stockpile", "smelter", "refinery", "china", "lme", "forecast",
+        "outlook", "guidance", "earnings", "results"
+      ]
+    },
+    
+    "reliable_sources": [
+      "REUTERS", "BLOOMBERG", "FASTMARKETS", "METAL BULLETIN", 
+      "S&P GLOBAL", "PLATTS", "MINING.COM", "ARGUS MEDIA"
+    ],
+    
+    "excluded_sources": [
+      "MARKETWATCH", "SEEKING_ALPHA", "SPAM_SOURCE", "SOCIAL_MEDIA"
+    ],
+    
+    "collection_period_days": 3,
+    "enable_duplicate_filtering": true,
+    "enable_priority_scoring": true,
+    "language_preferences": ["en"]
+  },
+  
+  "logging": {
+    "log_level": "INFO",
+    "log_directory": "logs",
+    "max_log_size_mb": 10,
+    "backup_count": 5
+  },
+  
+  "scheduling": {
+    "auto_run_enabled": false,
+    "run_time": "09:00",
+    "timezone": "Asia/Tokyo",
+    "weekend_skip": true
+  },
+  
+  "performance": {
+    "max_retries": 3,
+    "retry_delay_seconds": 5,
+    "timeout_seconds": 30,
+    "batch_size": 100,
+    "parallel_queries": false
+  },
+  
+  "alerts": {
+    "high_priority_news_threshold": 25,
+    "error_alert_enabled": true,
+    "collection_failure_threshold": 0.5
+  },
+  
+  "future_migration": {
+    "target_database": "sqlserver",
+    "migration_planned": true,
+    "preserve_ids": true,
+    "backup_before_migration": true
+  }
+}
