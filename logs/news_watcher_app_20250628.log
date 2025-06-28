@@ -90,3 +90,13 @@
 2025-06-28 23:38:52,582 - NewsWatcherApp - INFO - UIアプリケーション開始
 2025-06-28 23:39:00,353 - NewsWatcherApp - INFO - バックグラウンドポーリング停止
 2025-06-28 23:39:00,353 - NewsWatcherApp - INFO - バックグラウンドポーリング停止
+2025-06-28 23:39:57,007 - NewsWatcherApp - INFO - バックグラウンドポーリング開始
+2025-06-28 23:39:57,008 - NewsWatcherApp - INFO - UIアプリケーション開始
+2025-06-28 23:40:00,782 - NewsWatcherApp - INFO - バックグラウンドポーリング停止
+2025-06-28 23:40:00,782 - NewsWatcherApp - INFO - バックグラウンドポーリング停止
+2025-06-28 23:43:04,773 - NewsWatcherApp - INFO - バックグラウンドポーリング開始
+2025-06-28 23:43:04,774 - NewsWatcherApp - INFO - UIアプリケーション開始
+2025-06-28 23:44:25,704 - NewsWatcherApp - INFO - 手動分析用高速モデル使用: gemini-1.5-flash
+2025-06-28 23:44:25,704 - NewsWatcherApp - INFO - 手動分析用高速モデル使用: gemini-1.5-flash
+2025-06-28 23:44:54,211 - NewsWatcherApp - INFO - AI分析完了: urn:newsml:newswire.refinitiv.com:20250627:nL6N3SU0PV:4_7-0日前
+2025-06-28 23:44:54,211 - NewsWatcherApp - INFO - AI分析完了: urn:newsml:newswire.refinitiv.com:20250627:nL6N3SU0PV:4_7-0日前
