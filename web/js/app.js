@@ -22,6 +22,7 @@ class NewsWatcher {
     
     setupEventListeners() {
         // 基本操作
+        document.getElementById('manualCollectBtn').addEventListener('click', () => this.manualCollectNews());
         document.getElementById('refreshBtn').addEventListener('click', () => this.refreshCurrentTab());
         document.getElementById('searchBtn').addEventListener('click', () => this.performSearch());
         document.getElementById('searchKeyword').addEventListener('keypress', (e) => {
@@ -815,6 +816,42 @@ class NewsWatcher {
             }
         } catch (error) {
             this.showError('保存エラー: ' + error.message);
+        }
+    }
+    
+    async manualCollectNews() {
+        const btn = document.getElementById('manualCollectBtn');
+        const originalContent = btn.innerHTML;
+        
+        try {
+            // ボタンを無効化
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 収集中...';
+            
+            this.updateStatus('ニュース収集中...', 'warning');
+            this.showInfo('Refinitiv APIからニュースを収集しています...');
+            
+            const result = await eel.manual_collect_news()();
+            
+            if (result.success) {
+                this.showSuccess(`ニュース収集完了: ${result.collected_count}件の新しいニュースを取得しました`);
+                this.updateStatus('収集完了', 'success');
+                
+                // 最新ニュースタブの場合は自動更新
+                if (this.currentTab === 'latest') {
+                    await this.loadLatestNews();
+                }
+            } else {
+                this.showError('ニュース収集に失敗しました: ' + result.error);
+                this.updateStatus('収集エラー', 'error');
+            }
+        } catch (error) {
+            this.showError('ニュース収集エラー: ' + error.message);
+            this.updateStatus('収集エラー', 'error');
+        } finally {
+            // ボタンを復元
+            btn.disabled = false;
+            btn.innerHTML = originalContent;
         }
     }
 }

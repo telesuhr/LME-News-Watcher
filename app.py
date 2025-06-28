@@ -426,7 +426,9 @@ def manual_collect_news() -> Dict:
         if not app.news_collector:
             app.news_collector = RefinitivNewsCollector(app.config_path)
         
+        app.logger.info("手動ニュース収集開始")
         collected_count = app.news_collector.collect_news()
+        app.logger.info(f"手動ニュース収集完了: {collected_count}件")
         
         return {
             'success': True,
