@@ -38,17 +38,17 @@ class DatabaseDetector:
         """
         logger.info("データベース自動検出開始...")
         
-        # まずPostgreSQLを試す
+        # まずSQL ServerのJCLデータベースを試す（Windows環境用）
+        sql_config = self._get_sqlserver_config()
+        if self._test_sqlserver(sql_config):
+            logger.info("SQL Server (JCL)が検出されました。SQL Serverを使用します。")
+            return "sqlserver", sql_config
+        
+        # SQL Serverが使えない場合はPostgreSQLを試す
         pg_config = self._get_postgresql_config()
         if self._test_postgresql(pg_config):
             logger.info("PostgreSQLが検出されました。PostgreSQLを使用します。")
             return "postgresql", pg_config
-        
-        # PostgreSQLが使えない場合はSQL Serverを試す
-        sql_config = self._get_sqlserver_config()
-        if self._test_sqlserver(sql_config):
-            logger.info("SQL Serverが検出されました。SQL Serverを使用します。")
-            return "sqlserver", sql_config
         
         # どちらも使えない場合は設定ファイルの設定を使用
         db_config = self.config.get('database', {})
@@ -77,8 +77,8 @@ class DatabaseDetector:
         # SQL Server用の設定を生成
         config = {
             'database_type': 'sqlserver',
-            'server': db_config.get('server', 'localhost'),
-            'database': db_config.get('database', 'lme_reporting'),
+            'server': db_config.get('host', db_config.get('server', 'localhost')),
+            'database': db_config.get('database', 'JCL'),
             'driver': db_config.get('driver', 'ODBC Driver 17 for SQL Server')
         }
         
@@ -138,14 +138,19 @@ class DatabaseDetector:
             
             conn = pyodbc.connect(conn_str)
             
-            # データベース存在確認
+            # JCLデータベース存在確認
             cursor = conn.cursor()
-            cursor.execute("SELECT 1")
+            cursor.execute("SELECT name FROM sys.databases WHERE name = ?", config.get('database'))
+            result = cursor.fetchone()
             cursor.close()
             conn.close()
             
-            logger.info("SQL Server接続テスト成功")
-            return True
+            if result:
+                logger.info(f"SQL Server (JCL)接続成功: {config.get('server')}/{config.get('database')}")
+                return True
+            else:
+                logger.warning(f"JCLデータベースが見つかりません: {config.get('server')}")
+                return False
             
         except Exception as e:
             logger.debug(f"SQL Server接続テスト失敗: {e}")

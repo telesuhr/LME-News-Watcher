@@ -9,11 +9,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Start the desktop application (auto-detects database)
 python app.py
 
-# Initialize database (auto-detects PostgreSQL or SQL Server)
+# Initialize database (auto-detects SQL Server JCL or PostgreSQL)
 python setup_database_spec.py
 
 # Test database auto-detection
 python test_database_autodetect.py
+
+# Test JCL database connection (Windows)
+python test_jcl_connection.py
 
 # Build Windows executable
 python build_exe.py
@@ -61,7 +64,7 @@ python -c "from database_spec import SpecDatabaseManager; import json; config = 
 
 **Database Auto-Detection (`database_detector.py`)**
 - `DatabaseDetector`: Automatically detects available databases
-- Tries PostgreSQL first, then SQL Server if PostgreSQL unavailable
+- Tries SQL Server JCL database first (Windows production), then PostgreSQL if unavailable
 - Supports Windows Authentication for SQL Server
 - Provides fallback to configuration file settings
 
