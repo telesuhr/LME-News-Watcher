@@ -492,10 +492,29 @@ def analyze_single_news(news_id: str) -> Dict:
         news_for_analysis['sentiment'] = None
         news_for_analysis['keywords'] = None
         
-        # AI分析実行
+        # AI分析実行（手動分析では高速モデルを使用）
         async def analyze():
-            result = await app.news_collector.gemini_analyzer.analyze_news_item(news_for_analysis)
-            return result
+            # 手動分析用の高速設定を適用
+            original_model = app.news_collector.gemini_analyzer.model
+            manual_config = app.config.get('gemini_integration', {}).get('manual_analysis', {})
+            
+            if manual_config.get('use_fast_model'):
+                # 一時的にFlashモデルに切り替え
+                try:
+                    import google.generativeai as genai
+                    fast_model_name = manual_config.get('model', 'gemini-1.5-flash')
+                    app.news_collector.gemini_analyzer.model = genai.GenerativeModel(fast_model_name)
+                    app.logger.info(f"手動分析用高速モデル使用: {fast_model_name}")
+                except Exception as e:
+                    app.logger.warning(f"高速モデル切り替え失敗: {e}")
+            
+            try:
+                result = await app.news_collector.gemini_analyzer.analyze_news_item(news_for_analysis)
+                return result
+            finally:
+                # 元のモデルに戻す
+                if manual_config.get('use_fast_model'):
+                    app.news_collector.gemini_analyzer.model = original_model
         
         import asyncio
         result = asyncio.run(analyze())

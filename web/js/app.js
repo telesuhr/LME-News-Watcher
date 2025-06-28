@@ -281,9 +281,13 @@ class NewsWatcher {
                 </div>
                 
                 <div class="news-meta">
-                    <span class="news-source">${this.escapeHtml(news.source)}</span>
-                    <span class="news-date">${publishTime}</span>
-                    ${sentiment ? `<span class="sentiment sentiment-${sentiment.toLowerCase()}">${sentiment}</span>` : ''}
+                    <div class="news-meta-left">
+                        <span class="news-source">${this.escapeHtml(news.source)}</span>
+                        ${sentiment ? `<span class="sentiment sentiment-${sentiment.toLowerCase()}">${sentiment}</span>` : ''}
+                    </div>
+                    <div class="news-meta-right">
+                        <span class="news-date">${publishTime}</span>
+                    </div>
                 </div>
                 
                 ${news.summary ? `<div class="news-summary"><strong>要約:</strong> ${this.escapeHtml(news.summary)}</div>` : ''}
@@ -737,13 +741,22 @@ class NewsWatcher {
     
     // AI分析関連メソッド
     async runAIAnalysis(newsId) {
+        // ボタンを無効化
+        const analysisButtons = document.querySelectorAll(`[onclick*="${newsId}"]`);
+        analysisButtons.forEach(btn => {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 分析中...';
+        });
+        
         try {
-            this.showInfo('AI分析を実行中...');
+            this.showInfo('AI分析を実行中... (高速モデル使用)');
             
+            const startTime = Date.now();
             const result = await eel.analyze_single_news(newsId)();
+            const duration = ((Date.now() - startTime) / 1000).toFixed(1);
             
             if (result.success) {
-                this.showSuccess('AI分析が完了しました');
+                this.showSuccess(`AI分析が完了しました (${duration}秒)`);
                 // モーダルを再読み込み
                 await this.showNewsDetail(newsId);
             } else {
@@ -751,6 +764,14 @@ class NewsWatcher {
             }
         } catch (error) {
             this.showError('AI分析エラー: ' + error.message);
+        } finally {
+            // ボタンを復元
+            analysisButtons.forEach(btn => {
+                btn.disabled = false;
+                if (btn.innerHTML.includes('分析中')) {
+                    btn.innerHTML = '<i class="fas fa-sync"></i> 再分析';
+                }
+            });
         }
     }
     

@@ -196,6 +196,11 @@
       "batch_size": 3,
       "max_daily_cost_usd": 10.0
     },
+    "manual_analysis": {
+      "use_fast_model": true,
+      "model": "gemini-1.5-flash",
+      "timeout_seconds": 15
+    },
     "analysis_prompts": {
       "summary": "以下の金融ニュースを要約し、特に**LME非鉄金属市場または関連するコモディティ市場への潜在的な影響**に焦点を当ててください。要約は**最大3文**とし、最後に**ポジティブ、ネガティブ、または中立**のセンチメントを評価してください：",
       "sentiment": "以下のニュースの市場センチメントを「ポジティブ」「ネガティブ」「ニュートラル」で評価し、LME金属市場への影響理由を具体的に述べてください：",

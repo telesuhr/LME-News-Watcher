@@ -64,3 +64,13 @@
 2025-06-28 22:43:36,503 - NewsWatcherApp - INFO - UIアプリケーション開始
 2025-06-28 22:44:57,002 - NewsWatcherApp - INFO - AI分析完了: manual_f764a3fec376
 2025-06-28 22:44:57,002 - NewsWatcherApp - INFO - AI分析完了: manual_f764a3fec376
+2025-06-28 23:11:24,973 - NewsWatcherApp - INFO - バックグラウンドポーリング開始
+2025-06-28 23:11:24,974 - NewsWatcherApp - INFO - UIアプリケーション開始
+2025-06-28 23:16:18,457 - NewsWatcherApp - INFO - バックグラウンドポーリング開始
+2025-06-28 23:16:18,457 - NewsWatcherApp - INFO - UIアプリケーション開始
+2025-06-28 23:16:27,378 - NewsWatcherApp - INFO - 手動分析用高速モデル使用: gemini-1.5-flash
+2025-06-28 23:16:27,378 - NewsWatcherApp - INFO - 手動分析用高速モデル使用: gemini-1.5-flash
+2025-06-28 23:16:58,146 - NewsWatcherApp - INFO - AI分析完了: manual_f96c8c7c7bdd
+2025-06-28 23:16:58,146 - NewsWatcherApp - INFO - AI分析完了: manual_f96c8c7c7bdd
+2025-06-28 23:17:54,375 - NewsWatcherApp - INFO - 手動分析用高速モデル使用: gemini-1.5-flash
+2025-06-28 23:17:54,375 - NewsWatcherApp - INFO - 手動分析用高速モデル使用: gemini-1.5-flash
