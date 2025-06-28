@@ -32,6 +32,7 @@ def build_executable():
         '--hidden-import', 'eikon',
         '--hidden-import', 'pandas',
         '--hidden-import', 'numpy',
+        '--hidden-import', 'google.generativeai',
         '--collect-all', 'eel',
         '--noconfirm',                  # 確認なしで実行
         '--clean',                      # クリーンビルド
@@ -95,19 +96,22 @@ def create_distribution_readme(release_dir: Path):
 
 ## システム要件
 - Windows 10/11 (64bit)
-- PostgreSQL 12+ または SQL Server 2019+
+- SQL Server 2019+ (JCLデータベース) または PostgreSQL 12+
+- Microsoft ODBC Driver 17 for SQL Server
 - Refinitiv EIKON Desktop (実行中)
 - インターネット接続
 
 ## 初回セットアップ
 
 ### 1. データベース準備
-PostgreSQLまたはSQL Serverにデータベースを作成してください。
+既存のSQL Server JCLデータベースまたはPostgreSQLデータベースを使用。
+JCLデータベースが推奨（Windows環境）。
 
 ### 2. 設定ファイル編集
 `config.json`を編集して以下を設定：
 - EIKON APIキー
-- データベース接続情報
+- データベース接続情報（JCL用設定例あり）
+- Gemini AI APIキー（AI分析用）
 
 ### 3. 初回実行
 `LME_News_Watcher.exe`をダブルクリックして実行。

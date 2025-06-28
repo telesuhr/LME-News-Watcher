@@ -38,17 +38,33 @@ class DatabaseDetector:
         """
         logger.info("データベース自動検出開始...")
         
-        # まずSQL ServerのJCLデータベースを試す（Windows環境用）
-        sql_config = self._get_sqlserver_config()
-        if self._test_sqlserver(sql_config):
-            logger.info("SQL Server (JCL)が検出されました。SQL Serverを使用します。")
-            return "sqlserver", sql_config
+        # 設定ファイルの優先設定を確認
+        preferred_db = self.config.get('database', {}).get('database_type', 'postgresql')
         
-        # SQL Serverが使えない場合はPostgreSQLを試す
-        pg_config = self._get_postgresql_config()
-        if self._test_postgresql(pg_config):
-            logger.info("PostgreSQLが検出されました。PostgreSQLを使用します。")
-            return "postgresql", pg_config
+        if preferred_db == 'sqlserver':
+            # SQL ServerのJCLデータベースを優先的に試す（Windows環境用）
+            sql_config = self._get_sqlserver_config()
+            if self._test_sqlserver(sql_config):
+                logger.info("SQL Server (JCL)が検出されました。SQL Serverを使用します。")
+                return "sqlserver", sql_config
+            
+            # SQL Serverが使えない場合はPostgreSQLを試す
+            pg_config = self._get_postgresql_config()
+            if self._test_postgresql(pg_config):
+                logger.info("PostgreSQLが検出されました。PostgreSQLを使用します。")
+                return "postgresql", pg_config
+        else:
+            # PostgreSQLを優先的に試す（Mac/Linux環境用）
+            pg_config = self._get_postgresql_config()
+            if self._test_postgresql(pg_config):
+                logger.info("PostgreSQLが検出されました。PostgreSQLを使用します。")
+                return "postgresql", pg_config
+            
+            # PostgreSQLが使えない場合はSQL Serverを試す
+            sql_config = self._get_sqlserver_config()
+            if self._test_sqlserver(sql_config):
+                logger.info("SQL Server (JCL)が検出されました。SQL Serverを使用します。")
+                return "sqlserver", sql_config
         
         # どちらも使えない場合は設定ファイルの設定を使用
         db_config = self.config.get('database', {})

@@ -29,3 +29,7 @@ schedule>=1.1.0          # Task scheduling
 
 # For .exe creation
 PyInstaller>=5.0          # Executable creation
+
+# Build dependencies
+setuptools>=65.0.0        # Build tools
+wheel>=0.37.0             # Package building

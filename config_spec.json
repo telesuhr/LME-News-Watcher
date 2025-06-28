@@ -1,14 +1,12 @@
 {
   "eikon_api_key": "1475940198b04fdab9265b7892546cc2ead9eda6",
   "database": {
-    "database_type": "sqlserver",
+    "database_type": "postgresql",
     "host": "localhost",
-    "port": 1433,
-    "database": "JCL",
-    "user": "",
-    "password": "",
-    "trusted_connection": true,
-    "driver": "ODBC Driver 17 for SQL Server"
+    "port": 5432,
+    "database": "lme_reporting",
+    "user": "Yusuke",
+    "password": ""
   },
   "news_collection": {
     "polling_interval_minutes": 5,
