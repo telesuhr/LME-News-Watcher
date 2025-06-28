@@ -600,7 +600,70 @@ body {
 .analysis-item strong {
     color: #2c3e50;
     display: block;
+    margin-bottom: 0.5rem;
+}
+
+/* AI分析ヘッダー */
+.analysis-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.analysis-header h4 {
+    margin-bottom: 0;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.analysis-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* AI分析編集フォーム */
+.analysis-edit {
+    background: #fff;
+    padding: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-top: 1rem;
+}
+
+.analysis-edit .form-group {
+    margin-bottom: 1rem;
+}
+
+.analysis-edit label {
+    display: block;
     margin-bottom: 0.25rem;
+    font-weight: 500;
+    color: #2c3e50;
+}
+
+.edit-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.no-analysis {
+    color: #7f8c8d;
+    font-style: italic;
+    text-align: center;
+    padding: 2rem;
+}
+
+.btn-ai {
+    background: #4caf50;
+    color: white;
+    border: none;
+}
+
+.btn-ai:hover {
+    background: #45a049;
+}om: 0.25rem;
 }
 
 .analysis-item p {

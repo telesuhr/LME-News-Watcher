@@ -340,29 +340,78 @@ class NewsWatcher {
                         ` : ''}
                     </div>
                     
-                    ${news.summary || news.sentiment || news.keywords ? `
-                        <div class="ai-analysis-section">
+                    <div class="ai-analysis-section">
+                        <div class="analysis-header">
                             <h4>AI分析結果</h4>
-                            ${news.summary ? `
-                                <div class="analysis-item">
-                                    <strong>要約:</strong>
-                                    <p>${this.escapeHtml(news.summary)}</p>
-                                </div>
-                            ` : ''}
-                            ${news.sentiment ? `
-                                <div class="analysis-item">
-                                    <strong>センチメント:</strong>
-                                    <span class="sentiment sentiment-${news.sentiment.toLowerCase()}">${news.sentiment}</span>
-                                </div>
-                            ` : ''}
-                            ${news.keywords ? `
-                                <div class="analysis-item">
-                                    <strong>キーワード:</strong>
-                                    <p>${this.escapeHtml(news.keywords)}</p>
-                                </div>
-                            ` : ''}
+                            <div class="analysis-actions">
+                                ${!news.summary && !news.sentiment && !news.keywords ? `
+                                    <button class="btn btn-ai btn-sm" onclick="newsWatcher.runAIAnalysis('${news.news_id}')">
+                                        <i class="fas fa-robot"></i> AI分析を実行
+                                    </button>
+                                ` : `
+                                    <button class="btn btn-secondary btn-sm" onclick="newsWatcher.toggleEditAnalysis('${news.news_id}')">
+                                        <i class="fas fa-edit"></i> 編集
+                                    </button>
+                                    <button class="btn btn-ai btn-sm" onclick="newsWatcher.runAIAnalysis('${news.news_id}')">
+                                        <i class="fas fa-sync"></i> 再分析
+                                    </button>
+                                `}
+                            </div>
                         </div>
-                    ` : ''}
+                        
+                        <div id="analysis-view-${news.news_id}" class="analysis-content">
+                            ${news.summary || news.sentiment || news.keywords ? `
+                                ${news.summary ? `
+                                    <div class="analysis-item">
+                                        <strong>要約:</strong>
+                                        <p>${this.escapeHtml(news.summary)}</p>
+                                    </div>
+                                ` : ''}
+                                ${news.sentiment ? `
+                                    <div class="analysis-item">
+                                        <strong>センチメント:</strong>
+                                        <span class="sentiment sentiment-${news.sentiment.toLowerCase()}">${news.sentiment}</span>
+                                    </div>
+                                ` : ''}
+                                ${news.keywords ? `
+                                    <div class="analysis-item">
+                                        <strong>キーワード:</strong>
+                                        <p>${this.escapeHtml(news.keywords)}</p>
+                                    </div>
+                                ` : ''}
+                            ` : `
+                                <p class="no-analysis">まだAI分析が実行されていません。</p>
+                            `}
+                        </div>
+                        
+                        <div id="analysis-edit-${news.news_id}" class="analysis-edit" style="display: none;">
+                            <div class="form-group">
+                                <label>要約</label>
+                                <textarea id="edit-summary-${news.news_id}" class="form-textarea" rows="3">${news.summary || ''}</textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>センチメント</label>
+                                <select id="edit-sentiment-${news.news_id}" class="form-select">
+                                    <option value="">選択してください</option>
+                                    <option value="ポジティブ" ${news.sentiment === 'ポジティブ' ? 'selected' : ''}>ポジティブ</option>
+                                    <option value="ネガティブ" ${news.sentiment === 'ネガティブ' ? 'selected' : ''}>ネガティブ</option>
+                                    <option value="ニュートラル" ${news.sentiment === 'ニュートラル' ? 'selected' : ''}>ニュートラル</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>キーワード</label>
+                                <input type="text" id="edit-keywords-${news.news_id}" class="form-input" value="${news.keywords || ''}">
+                            </div>
+                            <div class="edit-actions">
+                                <button class="btn btn-primary btn-sm" onclick="newsWatcher.saveAnalysisEdit('${news.news_id}')">
+                                    <i class="fas fa-save"></i> 保存
+                                </button>
+                                <button class="btn btn-secondary btn-sm" onclick="newsWatcher.cancelEditAnalysis('${news.news_id}')">
+                                    <i class="fas fa-times"></i> キャンセル
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                     
                     <div class="news-detail-body">
                         <h4>本文</h4>
@@ -680,6 +729,68 @@ class NewsWatcher {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+    
+    // AI分析関連メソッド
+    async runAIAnalysis(newsId) {
+        try {
+            this.showInfo('AI分析を実行中...');
+            
+            const result = await eel.analyze_single_news(newsId)();
+            
+            if (result.success) {
+                this.showSuccess('AI分析が完了しました');
+                // モーダルを再読み込み
+                await this.showNewsDetail(newsId);
+            } else {
+                this.showError('AI分析に失敗しました: ' + result.error);
+            }
+        } catch (error) {
+            this.showError('AI分析エラー: ' + error.message);
+        }
+    }
+    
+    toggleEditAnalysis(newsId) {
+        const viewDiv = document.getElementById(`analysis-view-${newsId}`);
+        const editDiv = document.getElementById(`analysis-edit-${newsId}`);
+        
+        if (viewDiv && editDiv) {
+            viewDiv.style.display = viewDiv.style.display === 'none' ? 'block' : 'none';
+            editDiv.style.display = editDiv.style.display === 'none' ? 'block' : 'none';
+        }
+    }
+    
+    cancelEditAnalysis(newsId) {
+        this.toggleEditAnalysis(newsId);
+    }
+    
+    async saveAnalysisEdit(newsId) {
+        try {
+            const summary = document.getElementById(`edit-summary-${newsId}`).value;
+            const sentiment = document.getElementById(`edit-sentiment-${newsId}`).value;
+            const keywords = document.getElementById(`edit-keywords-${newsId}`).value;
+            
+            const analysisData = {
+                news_id: newsId,
+                summary: summary,
+                sentiment: sentiment,
+                keywords: keywords
+            };
+            
+            this.showInfo('分析結果を保存中...');
+            
+            const result = await eel.update_news_analysis(analysisData)();
+            
+            if (result.success) {
+                this.showSuccess('分析結果を保存しました');
+                // モーダルを再読み込み
+                await this.showNewsDetail(newsId);
+            } else {
+                this.showError('保存に失敗しました: ' + result.error);
+            }
+        } catch (error) {
+            this.showError('保存エラー: ' + error.message);
+        }
     }
 }
 

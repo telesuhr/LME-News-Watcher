@@ -99,7 +99,7 @@ class NewsWatcherApp:
             return
         
         try:
-            self.news_collector = RefinitivNewsCollector(self.config_path)
+            self.news_collector = RefinitivNewsCollector()
             self.polling_service = NewsPollingService(self.config_path)
             
             self.polling_thread = threading.Thread(
@@ -469,6 +469,85 @@ def get_gemini_stats() -> Dict:
         return {'success': True, **stats}
         
     except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+@eel.expose
+def analyze_single_news(news_id: str) -> Dict:
+    """単一ニュースのAI分析実行"""
+    try:
+        app = init_app()
+        
+        # ニュース取得
+        news = app.db_manager.get_news_by_id(news_id)
+        if not news:
+            return {'success': False, 'error': 'ニュースが見つかりません'}
+        
+        # ニュース収集器初期化（未初期化の場合）
+        if not app.news_collector:
+            app.news_collector = RefinitivNewsCollector()
+        
+        # 既存の分析を一時的にクリアして強制的に再分析
+        news_for_analysis = news.copy()
+        news_for_analysis['summary'] = None
+        news_for_analysis['sentiment'] = None
+        news_for_analysis['keywords'] = None
+        
+        # AI分析実行
+        async def analyze():
+            result = await app.news_collector.gemini_analyzer.analyze_news_item(news_for_analysis)
+            return result
+        
+        import asyncio
+        result = asyncio.run(analyze())
+        
+        if result:
+            # データベース更新
+            success = app.db_manager.update_news_analysis(news_id, {
+                'summary': result.summary,
+                'sentiment': result.sentiment,
+                'keywords': result.keywords,
+                'importance_score': result.importance_score
+            })
+            
+            if success:
+                app.logger.info(f"AI分析完了: {news_id}")
+                return {'success': True}
+            else:
+                return {'success': False, 'error': 'データベース更新に失敗しました'}
+        else:
+            return {'success': False, 'error': 'AI分析に失敗しました'}
+            
+    except Exception as e:
+        app.logger.error(f"AI分析エラー: {e}")
+        return {'success': False, 'error': str(e)}
+
+@eel.expose
+def update_news_analysis(analysis_data: Dict) -> Dict:
+    """ニュース分析結果の手動更新"""
+    try:
+        app = init_app()
+        
+        news_id = analysis_data.get('news_id')
+        if not news_id:
+            return {'success': False, 'error': 'ニュースIDが指定されていません'}
+        
+        # データベース更新
+        update_data = {
+            'summary': analysis_data.get('summary', ''),
+            'sentiment': analysis_data.get('sentiment', ''),
+            'keywords': analysis_data.get('keywords', '')
+        }
+        
+        success = app.db_manager.update_news_analysis(news_id, update_data)
+        
+        if success:
+            app.logger.info(f"分析結果手動更新: {news_id}")
+            return {'success': True}
+        else:
+            return {'success': False, 'error': '更新に失敗しました'}
+            
+    except Exception as e:
+        app.logger.error(f"分析更新エラー: {e}")
         return {'success': False, 'error': str(e)}
 
 def main():
