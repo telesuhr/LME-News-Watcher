@@ -19,6 +19,7 @@ from pathlib import Path
 from models_spec import NewsArticle, NewsSearchFilter, validate_manual_news_input, extract_related_metals
 from database_spec import SpecDatabaseManager
 from news_collector_spec import RefinitivNewsCollector, NewsPollingService
+from database_detector import DatabaseDetector
 
 class NewsWatcherApp:
     """ニュースウォッチャーアプリケーション"""
@@ -27,7 +28,10 @@ class NewsWatcherApp:
         """初期化"""
         self.config_path = config_path
         self.config = self._load_config()
-        self.db_manager = SpecDatabaseManager(self.config["database"])
+        
+        # データベース自動検出
+        self.db_manager = self._setup_database()
+        
         self.news_collector = None
         self.polling_service = None
         self.polling_thread = None
@@ -65,6 +69,29 @@ class NewsWatcherApp:
         logger.addHandler(handler)
         
         return logger
+    
+    def _setup_database(self) -> SpecDatabaseManager:
+        """データベース自動検出とセットアップ"""
+        print("データベース接続を確認しています...")
+        
+        # 自動検出
+        detector = DatabaseDetector(self.config_path)
+        db_type, db_config = detector.detect_and_configure()
+        
+        # 検出結果を設定に反映
+        self.config["database"] = db_config
+        
+        # 利用可能なデータベース一覧を表示
+        available_dbs = detector.get_available_databases()
+        print("\n利用可能なデータベース:")
+        for db, is_available in available_dbs.items():
+            status = "✓" if is_available else "✗"
+            print(f"  {status} {db}")
+        
+        print(f"\n選択されたデータベース: {db_type}")
+        
+        # データベースマネージャー作成
+        return SpecDatabaseManager(db_config)
     
     def start_background_polling(self):
         """バックグラウンドポーリング開始"""

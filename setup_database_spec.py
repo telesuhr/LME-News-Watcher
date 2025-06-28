@@ -11,6 +11,7 @@ from pathlib import Path
 from datetime import datetime
 
 from database_spec import SpecDatabaseManager
+from database_detector import DatabaseDetector
 
 def setup_logging():
     """ログ設定"""
@@ -141,10 +142,18 @@ def display_setup_summary(config, logger):
     print("="*70)
     print(f"データベースタイプ: {db_config['database_type'].upper()}")
     print(f"データベース名: {db_config['database']}")
-    print(f"ホスト: {db_config['host']}")
+    
     if db_config['database_type'] == 'postgresql':
+        print(f"ホスト: {db_config['host']}")
         print(f"ポート: {db_config['port']}")
-    print(f"ユーザー: {db_config['user']}")
+        print(f"ユーザー: {db_config['user']}")
+    else:  # SQL Server
+        print(f"サーバー: {db_config['server']}")
+        if db_config.get('trusted_connection'):
+            print(f"認証方式: Windows認証")
+        else:
+            print(f"認証方式: SQL Server認証")
+            print(f"ユーザー: {db_config['user']}")
     
     print("\n📋 作成されたテーブル:")
     print("✅ news_table - ニュースデータ（Refinitiv + 手動登録）")
@@ -185,10 +194,26 @@ def main():
     try:
         # 設定読み込み
         config = load_config()
-        db_config = config["database"]
+        
+        # データベース自動検出
+        print("\nデータベース接続を確認しています...")
+        detector = DatabaseDetector("config_spec.json")
+        db_type, db_config = detector.detect_and_configure()
+        
+        # 利用可能なデータベース表示
+        available_dbs = detector.get_available_databases()
+        print("\n利用可能なデータベース:")
+        for db, is_available in available_dbs.items():
+            status = "✓" if is_available else "✗"
+            print(f"  {status} {db}")
+        
+        print(f"\n選択されたデータベース: {db_type}")
+        
+        # 検出結果を設定に反映
+        config["database"] = db_config
         
         logger.info(f"データベースタイプ: {db_config['database_type']}")
-        logger.info(f"ホスト: {db_config['host']}")
+        logger.info(f"サーバー: {db_config.get('server') or db_config.get('host')}")
         logger.info(f"データベース: {db_config['database']}")
         
         # データベースマネージャー初期化

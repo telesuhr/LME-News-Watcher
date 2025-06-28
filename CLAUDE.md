@@ -6,11 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Running the Application
 ```bash
-# Start the desktop application
+# Start the desktop application (auto-detects database)
 python app.py
 
-# Initialize database (first time setup)
+# Initialize database (auto-detects PostgreSQL or SQL Server)
 python setup_database_spec.py
+
+# Test database auto-detection
+python test_database_autodetect.py
 
 # Build Windows executable
 python build_exe.py
@@ -55,6 +58,12 @@ python -c "from database_spec import SpecDatabaseManager; import json; config = 
 - Provides CRUD operations with prepared statements
 - Implements search functionality with dynamic filtering
 - Connection pooling and transaction management
+
+**Database Auto-Detection (`database_detector.py`)**
+- `DatabaseDetector`: Automatically detects available databases
+- Tries PostgreSQL first, then SQL Server if PostgreSQL unavailable
+- Supports Windows Authentication for SQL Server
+- Provides fallback to configuration file settings
 
 **AI Analysis (`gemini_analyzer.py`)**
 - `GeminiNewsAnalyzer`: Integrates Google Gemini API for news analysis
