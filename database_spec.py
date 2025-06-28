@@ -395,6 +395,64 @@ class SpecDatabaseManager:
             self.logger.error(f"重複チェックエラー: {e}")
             return []
     
+    def update_news_analysis(self, news_id: str, analysis_data: Dict) -> bool:
+        """ニュース分析結果更新"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 更新フィールドを動的に構築
+                update_fields = []
+                values = []
+                
+                if analysis_data.get('summary'):
+                    update_fields.append('summary = %s' if self.db_type == "postgresql" else 'summary = ?')
+                    values.append(analysis_data['summary'])
+                
+                if analysis_data.get('sentiment'):
+                    update_fields.append('sentiment = %s' if self.db_type == "postgresql" else 'sentiment = ?')
+                    values.append(analysis_data['sentiment'])
+                
+                if analysis_data.get('keywords'):
+                    update_fields.append('keywords = %s' if self.db_type == "postgresql" else 'keywords = ?')
+                    values.append(analysis_data['keywords'])
+                
+                if analysis_data.get('importance_score') is not None:
+                    # importance_scoreを新しいカラムとして追加する場合
+                    # まずはkeywordsフィールドに重要度情報を含める
+                    current_keywords = analysis_data.get('keywords', '')
+                    importance_info = f"[重要度:{analysis_data['importance_score']}/10]"
+                    if current_keywords:
+                        enhanced_keywords = f"{current_keywords} {importance_info}"
+                    else:
+                        enhanced_keywords = importance_info
+                    
+                    # keywordsフィールドに重要度も含める
+                    if 'keywords = %s' not in ' '.join(update_fields) and 'keywords = ?' not in ' '.join(update_fields):
+                        update_fields.append('keywords = %s' if self.db_type == "postgresql" else 'keywords = ?')
+                        values.append(enhanced_keywords)
+                    else:
+                        # 既にkeywordsが設定されている場合は置き換え
+                        for i, field in enumerate(update_fields):
+                            if 'keywords' in field:
+                                values[i] = enhanced_keywords
+                                break
+                
+                if not update_fields:
+                    return False
+                
+                # SQL構築
+                sql = f"UPDATE news_table SET {', '.join(update_fields)} WHERE news_id = %s" if self.db_type == "postgresql" else f"UPDATE news_table SET {', '.join(update_fields)} WHERE news_id = ?"
+                values.append(news_id)
+                
+                cursor.execute(sql, values)
+                
+                return cursor.rowcount > 0
+                
+        except Exception as e:
+            self.logger.error(f"分析結果更新エラー: {e}")
+            return False
+    
     def get_system_stats_summary(self, days: int = 30) -> Dict:
         """システム統計サマリー取得"""
         try:

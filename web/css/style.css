@@ -117,14 +117,18 @@ body {
 /* メインコンテンツ */
 .main-content {
     padding: 2rem;
+    min-height: 600px; /* 最小高さを設定してレイアウト安定性を向上 */
 }
 
 .tab-content {
     display: none;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
 }
 
 .tab-content.active {
     display: block;
+    opacity: 1;
 }
 
 /* 検索・フィルター */
@@ -228,8 +232,19 @@ body {
 }
 
 /* ニュースリスト */
-.news-list {
+.news-list, .archive-list {
     min-height: 400px;
+    position: relative;
+}
+
+.no-results {
+    text-align: center;
+    padding: 3rem;
+    color: #7f8c8d;
+    font-size: 1.1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
 }
 
 .news-item {
@@ -288,6 +303,30 @@ body {
     color: #f57c00;
 }
 
+.badge-ai {
+    background: #e8f5e8;
+    color: #4caf50;
+}
+
+.badge-importance {
+    font-weight: 600;
+}
+
+.badge-importance.importance-high {
+    background: #ffebee;
+    color: #d32f2f;
+}
+
+.badge-importance.importance-medium {
+    background: #fff3e0;
+    color: #f57c00;
+}
+
+.badge-importance.importance-low {
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
 .news-meta {
     display: flex;
     justify-content: space-between;
@@ -310,6 +349,65 @@ body {
     font-size: 0.95rem;
     line-height: 1.5;
     margin-bottom: 0.75rem;
+}
+
+.news-summary {
+    background: #f0f8ff;
+    border-left: 3px solid #3498db;
+    padding: 0.75rem;
+    margin: 0.75rem 0;
+    font-size: 0.9rem;
+    border-radius: 0 4px 4px 0;
+}
+
+.news-summary strong {
+    color: #2c3e50;
+}
+
+.sentiment {
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.sentiment.sentiment-ポジティブ,
+.sentiment.sentiment-positive {
+    background: #e8f5e8;
+    color: #4caf50;
+}
+
+.sentiment.sentiment-ネガティブ,
+.sentiment.sentiment-negative {
+    background: #ffebee;
+    color: #f44336;
+}
+
+.sentiment.sentiment-ニュートラル,
+.sentiment.sentiment-neutral {
+    background: #f5f5f5;
+    color: #666;
+}
+
+.news-actions {
+    margin-top: 0.75rem;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-sm {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+}
+
+.btn-ai {
+    background: #4caf50;
+    color: white;
+    border: none;
+}
+
+.btn-ai:hover {
+    background: #45a049;
 }
 
 .news-metals {
@@ -450,11 +548,74 @@ body {
     font-weight: 500;
 }
 
-.system-info {
+.system-info,
+.gemini-info {
     background: #f8f9fa;
     padding: 1.5rem;
     border-radius: 8px;
     border: 1px solid #e9ecef;
+    margin-bottom: 1.5rem;
+}
+
+.gemini-info {
+    background: #f0f8ff;
+    border-color: #b3d9ff;
+}
+
+.gemini-info h4 {
+    color: #2c3e50;
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.gemini-info-content p {
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.ai-analysis-section {
+    background: #f9f9f9;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+}
+
+.ai-analysis-section h4 {
+    color: #2c3e50;
+    margin-bottom: 1rem;
+    font-weight: 600;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 0.5rem;
+}
+
+.analysis-item {
+    margin-bottom: 1rem;
+}
+
+.analysis-item:last-child {
+    margin-bottom: 0;
+}
+
+.analysis-item strong {
+    color: #2c3e50;
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+.analysis-item p {
+    margin: 0;
+    color: #555;
+    line-height: 1.5;
+}
+
+.news-detail-actions {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-start;
 }
 
 /* モーダル */
@@ -593,6 +754,53 @@ body {
     justify-content: flex-end;
     gap: 1rem;
     margin-top: 2rem;
+}
+
+/* ニュース詳細のメタ情報 */
+.news-detail-meta {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.meta-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.meta-row:last-child {
+    margin-bottom: 0;
+}
+
+.meta-row strong {
+    color: #2c3e50;
+    min-width: 100px;
+}
+
+.news-detail-body {
+    margin-bottom: 1.5rem;
+}
+
+.news-detail-body h4 {
+    color: #2c3e50;
+    margin-bottom: 1rem;
+    font-weight: 600;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 0.5rem;
+}
+
+.news-body-content {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 1.5rem;
+    line-height: 1.6;
+    color: #333;
 }
 
 /* レスポンシブ */

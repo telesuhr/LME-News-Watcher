@@ -148,6 +148,20 @@ def init_app():
 
 # EEL公開関数
 
+def _convert_datetime_to_iso(news_list: List[Dict]) -> List[Dict]:
+    """日時をISO形式文字列に変換"""
+    converted_news = []
+    for news in news_list:
+        news_copy = news.copy()
+        if 'publish_time' in news_copy and news_copy['publish_time']:
+            if isinstance(news_copy['publish_time'], datetime):
+                news_copy['publish_time'] = news_copy['publish_time'].isoformat()
+        if 'acquire_time' in news_copy and news_copy['acquire_time']:
+            if isinstance(news_copy['acquire_time'], datetime):
+                news_copy['acquire_time'] = news_copy['acquire_time'].isoformat()
+        converted_news.append(news_copy)
+    return converted_news
+
 @eel.expose
 def get_latest_news(limit: int = 50, offset: int = 0) -> Dict:
     """最新ニュース取得"""
@@ -158,6 +172,7 @@ def get_latest_news(limit: int = 50, offset: int = 0) -> Dict:
         search_filter.offset = offset
         
         news_list = app.db_manager.search_news(search_filter)
+        news_list = _convert_datetime_to_iso(news_list)
         total_count = app.db_manager.get_news_count()
         
         return {
@@ -191,6 +206,7 @@ def search_news(search_params: Dict) -> Dict:
         search_filter.offset = (page - 1) * per_page
         
         news_list = app.db_manager.search_news(search_filter)
+        news_list = _convert_datetime_to_iso(news_list)
         total_count = app.db_manager.get_news_count(search_filter)
         
         return {
@@ -222,6 +238,7 @@ def search_archive(search_params: Dict) -> Dict:
         search_filter.offset = (page - 1) * per_page
         
         news_list = app.db_manager.search_news(search_filter)
+        news_list = _convert_datetime_to_iso(news_list)
         total_count = app.db_manager.get_news_count(search_filter)
         
         return {
@@ -240,7 +257,9 @@ def get_news_detail(news_id: str) -> Dict:
         news = app.db_manager.get_news_by_id(news_id)
         
         if news:
-            return {'success': True, **news}
+            # 日時をISO形式に変換
+            news_converted = _convert_datetime_to_iso([news])[0]
+            return {'success': True, **news_converted}
         else:
             return {'success': False, 'error': 'ニュースが見つかりません'}
     except Exception as e:
@@ -408,6 +427,22 @@ def get_app_status() -> Dict:
             'polling_active': False,
             'error': str(e)
         }
+
+
+@eel.expose
+def get_gemini_stats() -> Dict:
+    """Gemini分析統計取得"""
+    try:
+        app = init_app()
+        
+        if not hasattr(app, 'news_collector') or not app.news_collector:
+            return {'success': False, 'error': 'ニュース収集器が初期化されていません'}
+        
+        stats = app.news_collector.gemini_analyzer.get_analysis_stats()
+        return {'success': True, **stats}
+        
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
 
 def main():
     """メイン実行関数"""

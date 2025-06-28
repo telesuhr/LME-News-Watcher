@@ -9,12 +9,15 @@ import json
 import logging
 import time
 import re
+import pandas as pd
+import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set
 from pathlib import Path
 
 from models_spec import NewsArticle, SystemStats, extract_related_metals
 from database_spec import SpecDatabaseManager
+from gemini_analyzer import GeminiNewsAnalyzer
 
 class RefinitivNewsCollector:
     """Refinitivニュース収集器（仕様書準拠）"""
@@ -30,13 +33,18 @@ class RefinitivNewsCollector:
         self.logger = self._setup_logger()
         self.db_manager = SpecDatabaseManager(self.config["database"])
         
+        # Gemini分析器初期化
+        self.gemini_analyzer = GeminiNewsAnalyzer(self.config)
+        
         # 統計カウンター
         self.stats = {
             'successful_queries': 0,
             'failed_queries': 0,
             'api_calls_made': 0,
             'errors_encountered': 0,
-            'total_collected': 0
+            'total_collected': 0,
+            'ai_analyzed': 0,
+            'ai_analysis_errors': 0
         }
         
         # 重複チェック用キャッシュ
@@ -145,9 +153,9 @@ class RefinitivNewsCollector:
                 return []
             
             news_items = []
-            for _, row in headlines.iterrows():
+            for idx, row in headlines.iterrows():
                 try:
-                    # 基本情報取得
+                    # 基本情報取得（エラーの原因を特定するため最小限に）
                     story_id = str(row.get('storyId', ''))
                     headline = self._clean_text(str(row.get('text', '')))
                     source = str(row.get('sourceCode', ''))
@@ -156,11 +164,29 @@ class RefinitivNewsCollector:
                     if story_id in self.existing_news_ids:
                         continue
                     
-                    # 日付処理
-                    date_str = str(row.get('versionCreated', ''))
+                    # 日付処理（簡略化してエラー回避）
                     try:
-                        publish_time = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-                    except:
+                        version_created = row.get('versionCreated')
+                        
+                        if version_created is not None:
+                            # まずpandas Timestampへの変換を試す
+                            if hasattr(pd, 'to_datetime'):
+                                ts = pd.to_datetime(version_created, errors='coerce')
+                                if not pd.isna(ts):
+                                    publish_time = ts.to_pydatetime()
+                                else:
+                                    publish_time = datetime.now()
+                            else:
+                                # フォールバック: 文字列として処理
+                                date_str = str(version_created)
+                                if 'T' in date_str and 'Z' in date_str:
+                                    publish_time = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                                else:
+                                    publish_time = datetime.now()
+                        else:
+                            publish_time = datetime.now()
+                    except Exception as e:
+                        self.logger.debug(f"日付変換エラー (フォールバック): {e}")
                         publish_time = datetime.now()
                     
                     # 除外ソースチェック
@@ -174,13 +200,25 @@ class RefinitivNewsCollector:
                     if story_id:
                         try:
                             story = ek.get_news_story(story_id)
-                            if story and hasattr(story, 'get'):
-                                body = self._clean_text(story.get('storyHtml', ''))
-                                url = story.get('url') or story.get('link')
                             self.stats['api_calls_made'] += 1
+                            
+                            if story:
+                                # 辞書形式の場合
+                                if isinstance(story, dict):
+                                    body = self._clean_text(story.get('storyHtml', '') or story.get('story', '') or story.get('text', ''))
+                                    url = story.get('url') or story.get('link')
+                                # 文字列の場合
+                                elif isinstance(story, str):
+                                    body = self._clean_text(story)
+                                # その他の形式
+                                else:
+                                    body = self._clean_text(str(story))
+                                    
                             time.sleep(0.1)  # API制限対策
                         except Exception as e:
                             self.logger.debug(f"本文取得エラー: {story_id} - {e}")
+                            # エラーの場合はヘッドラインを本文として使用
+                            body = headline
                     
                     # 関連金属抽出
                     related_metals = extract_related_metals(headline, body)
@@ -252,6 +290,118 @@ class RefinitivNewsCollector:
         start_date = end_date - timedelta(hours=hours_back)
         return start_date, end_date
     
+    def collect_historical_news(self, months_back: int = 3) -> int:
+        """過去数ヶ月のニュース一括収集"""
+        start_time = datetime.now()
+        self.logger.info(f"過去{months_back}ヶ月のニュース一括収集開始")
+        
+        try:
+            # 収集期間計算（数ヶ月）
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=months_back * 30)
+            self.logger.info(f"収集期間: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}")
+            
+            # 既存ニュースID読み込み
+            self._load_existing_news_ids()
+            
+            all_news = []
+            
+            # 基本的なクエリのみ使用（エラーが起きにくいもの）
+            basic_queries = [
+                "copper",
+                "aluminium", 
+                "zinc",
+                "lead",
+                "nickel",
+                "tin",
+                "LME",
+                "metals",
+                "commodity",
+                "mining"
+            ]
+            
+            for query in basic_queries:
+                self.logger.info(f"クエリ '{query}' の収集開始")
+                
+                try:
+                    # API制限を考慮して小分けして取得
+                    current_start = start_date
+                    while current_start < end_date:
+                        current_end = min(current_start + timedelta(days=7), end_date)
+                        
+                        self.logger.info(f"期間: {current_start.strftime('%Y-%m-%d')} - {current_end.strftime('%Y-%m-%d')}")
+                        
+                        try:
+                            news_items = self._get_news_by_query(query, current_start, current_end)
+                            all_news.extend(news_items)
+                            self.logger.info(f"取得: {len(news_items)} 件")
+                            
+                            # API制限対策
+                            time.sleep(2)
+                            
+                        except Exception as e:
+                            self.logger.warning(f"期間別取得エラー: {e}")
+                            continue
+                        
+                        current_start = current_end
+                        
+                    # クエリ間の間隔
+                    time.sleep(3)
+                    
+                except Exception as e:
+                    self.logger.error(f"クエリ '{query}' エラー: {e}")
+                    continue
+            
+            # データベース保存
+            saved_count = 0
+            if all_news:
+                self.logger.info(f"データベース保存開始: {len(all_news)} 件")
+                
+                # 重複除去
+                unique_news = {}
+                for item in all_news:
+                    story_id = item.get('story_id', '')
+                    if story_id and story_id not in unique_news:
+                        unique_news[story_id] = item
+                
+                self.logger.info(f"重複除去後: {len(unique_news)} 件")
+                
+                # NewsArticleオブジェクトに変換
+                news_articles = []
+                current_time = datetime.now()
+                
+                for item in unique_news.values():
+                    try:
+                        article = NewsArticle(
+                            news_id=item['story_id'],
+                            title=item['headline'],
+                            body=item['body'],
+                            publish_time=item['publish_time'],
+                            acquire_time=current_time,
+                            source=item['source'],
+                            url=item.get('url'),
+                            related_metals=item.get('related_metals'),
+                            is_manual=False
+                        )
+                        news_articles.append(article)
+                    except Exception as e:
+                        self.logger.warning(f"記事変換エラー: {e}")
+                        continue
+                
+                # バッチ保存
+                saved_count = self.db_manager.insert_news_batch(news_articles)
+                self.stats['total_collected'] = saved_count
+            
+            # 統計保存
+            execution_time = (datetime.now() - start_time).total_seconds()
+            
+            self.logger.info(f"一括収集完了: {saved_count} 件保存、実行時間: {execution_time:.2f}秒")
+            return saved_count
+            
+        except Exception as e:
+            self.logger.error(f"一括収集エラー: {e}")
+            return 0
+    
     def collect_news(self) -> int:
         """メインニュース収集処理"""
         start_time = datetime.now()
@@ -280,12 +430,13 @@ class RefinitivNewsCollector:
                     # API制限対策
                     time.sleep(self.config["news_collection"]["query_interval"])
             
-            # データベース保存
+            # データベース保存とAI分析
             saved_count = 0
             if all_news:
                 news_articles = []
                 current_time = datetime.now()
                 
+                # ニュース記事オブジェクト作成
                 for item in all_news:
                     article = NewsArticle(
                         news_id=item['story_id'],
@@ -300,8 +451,18 @@ class RefinitivNewsCollector:
                     )
                     news_articles.append(article)
                 
+                # データベース保存
                 saved_count = self.db_manager.insert_news_batch(news_articles)
                 self.stats['total_collected'] = saved_count
+                
+                # AI分析実行（非同期）
+                if self.gemini_analyzer.gemini_config.get("enable_ai_analysis", False):
+                    try:
+                        self.logger.info(f"AI分析開始: {len(news_articles)} 件")
+                        asyncio.run(self._analyze_news_batch(news_articles))
+                    except Exception as e:
+                        self.logger.error(f"AI分析エラー: {e}")
+                        self.stats['ai_analysis_errors'] += 1
             
             # 統計保存
             execution_time = (datetime.now() - start_time).total_seconds()
@@ -325,16 +486,63 @@ class RefinitivNewsCollector:
             self.stats['errors_encountered'] += 1
             return 0
     
+    async def _analyze_news_batch(self, news_articles: List[NewsArticle]):
+        """ニュース一括AI分析"""
+        try:
+            # NewsArticleをDict形式に変換
+            news_dicts = []
+            for article in news_articles:
+                news_dict = {
+                    'news_id': article.news_id,
+                    'title': article.title,
+                    'body': article.body,
+                    'source': article.source,
+                    'publish_time': article.publish_time,
+                    'related_metals': article.related_metals
+                }
+                news_dicts.append(news_dict)
+            
+            # AI分析実行
+            analysis_results = await self.gemini_analyzer.analyze_news_batch(news_dicts)
+            
+            # 分析結果をデータベースに更新
+            for news_id, result in analysis_results:
+                try:
+                    self.db_manager.update_news_analysis(news_id, {
+                        'summary': result.summary,
+                        'sentiment': result.sentiment,
+                        'keywords': result.keywords,
+                        'importance_score': result.importance_score
+                    })
+                    self.stats['ai_analyzed'] += 1
+                except Exception as e:
+                    self.logger.error(f"分析結果更新エラー {news_id}: {e}")
+            
+            self.logger.info(f"AI分析完了: {len(analysis_results)} 件")
+            
+        except Exception as e:
+            self.logger.error(f"AI分析バッチエラー: {e}")
+            self.stats['ai_analysis_errors'] += 1
+    
     def get_collection_status(self) -> Dict:
         """収集状況取得"""
-        return {
+        base_stats = {
             'successful_queries': self.stats['successful_queries'],
             'failed_queries': self.stats['failed_queries'],
             'api_calls_made': self.stats['api_calls_made'],
             'errors_encountered': self.stats['errors_encountered'],
             'total_collected': self.stats['total_collected'],
-            'existing_news_count': len(self.existing_news_ids)
+            'existing_news_count': len(self.existing_news_ids),
+            'ai_analyzed': self.stats['ai_analyzed'],
+            'ai_analysis_errors': self.stats['ai_analysis_errors']
         }
+        
+        # Gemini分析統計を追加
+        if hasattr(self, 'gemini_analyzer'):
+            gemini_stats = self.gemini_analyzer.get_analysis_stats()
+            base_stats['gemini_analysis'] = gemini_stats
+        
+        return base_stats
 
 class NewsPollingService:
     """ニュースポーリングサービス"""

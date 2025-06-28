@@ -64,20 +64,39 @@ class NewsWatcher {
     }
     
     switchTab(tabName) {
+        // 現在のタブと同じ場合は何もしない
+        if (this.currentTab === tabName) {
+            return;
+        }
+        
         // タブボタンの状態更新
         document.querySelectorAll('.nav-tab').forEach(tab => {
             tab.classList.remove('active');
         });
-        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+        const targetTabButton = document.querySelector(`[data-tab="${tabName}"]`);
+        if (targetTabButton) {
+            targetTabButton.classList.add('active');
+        }
         
         // タブコンテンツの表示切替
         document.querySelectorAll('.tab-content').forEach(content => {
             content.classList.remove('active');
         });
-        document.getElementById(`${tabName}-tab`).classList.add('active');
+        
+        const targetTabContent = document.getElementById(`${tabName}-tab`);
+        if (targetTabContent) {
+            targetTabContent.classList.add('active');
+        }
         
         this.currentTab = tabName;
         
+        // レイアウト安定化のため少し遅延させてから処理
+        setTimeout(() => {
+            this.handleTabSwitch(tabName);
+        }, 50);
+    }
+    
+    handleTabSwitch(tabName) {
         // タブ切替時の処理
         switch(tabName) {
             case 'latest':
@@ -145,7 +164,7 @@ class NewsWatcher {
     
     async performSearch() {
         this.currentPage = 1;
-        this.showLoading();
+        this.showLoading('newsList');
         
         try {
             const searchParams = {
@@ -160,8 +179,10 @@ class NewsWatcher {
             const response = await eel.search_news(searchParams)();
             this.displayNewsList(response.news, 'newsList');
             this.updatePagination(response.total_count, response.current_page);
+            this.updateStatus('検索完了', 'success');
         } catch (error) {
             this.showError('検索に失敗しました: ' + error.message);
+            this.updateStatus('検索エラー', 'error');
         }
     }
     
@@ -174,6 +195,8 @@ class NewsWatcher {
             return;
         }
         
+        this.showLoading('archiveList');
+        
         try {
             const searchParams = {
                 start_date: startDate,
@@ -185,26 +208,40 @@ class NewsWatcher {
             
             const response = await eel.search_archive(searchParams)();
             this.displayNewsList(response.news, 'archiveList');
+            this.updateStatus('アーカイブ検索完了', 'success');
         } catch (error) {
             this.showError('アーカイブ検索に失敗しました: ' + error.message);
+            this.updateStatus('検索エラー', 'error');
         }
     }
     
     displayNewsList(news, containerId) {
         const container = document.getElementById(containerId);
         
+        if (!container) {
+            console.error(`Container with id '${containerId}' not found`);
+            return;
+        }
+        
+        // レイアウト崩れを防ぐため、一旦内容をクリア
+        container.innerHTML = '';
+        
         if (!news || news.length === 0) {
             container.innerHTML = '<div class="no-results">ニュースが見つかりませんでした</div>';
             return;
         }
         
-        container.innerHTML = news.map(item => this.createNewsItemHTML(item)).join('');
+        // ニュースアイテムのHTMLを生成
+        const newsHTML = news.map(item => this.createNewsItemHTML(item)).join('');
+        container.innerHTML = newsHTML;
         
         // ニュースアイテムのクリックイベント設定
-        container.querySelectorAll('.news-item').forEach(item => {
-            item.addEventListener('click', () => {
-                const newsId = item.getAttribute('data-news-id');
-                this.showNewsDetail(newsId);
+        requestAnimationFrame(() => {
+            container.querySelectorAll('.news-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const newsId = item.getAttribute('data-news-id');
+                    this.showNewsDetail(newsId);
+                });
             });
         });
     }
@@ -216,6 +253,20 @@ class NewsWatcher {
         const preview = news.body ? news.body.substring(0, 200) + '...' : '';
         const metals = news.related_metals ? news.related_metals.split(',').map(m => m.trim()) : [];
         
+        // AI分析結果の表示
+        const hasAIAnalysis = news.summary || news.sentiment || news.keywords;
+        const sentiment = news.sentiment || '';
+        const keywords = news.keywords || '';
+        
+        // 重要度スコアの抽出（keywordsフィールドから）
+        let importanceScore = null;
+        if (keywords) {
+            const importanceMatch = keywords.match(/\[重要度:(\d+)\/10\]/);
+            if (importanceMatch) {
+                importanceScore = parseInt(importanceMatch[1]);
+            }
+        }
+        
         return `
             <div class="news-item" data-news-id="${news.news_id}">
                 <div class="news-header">
@@ -224,21 +275,26 @@ class NewsWatcher {
                         <span class="badge ${isManual ? 'badge-manual' : 'badge-refinitiv'}">
                             ${isManual ? '手動登録' : 'Refinitiv'}
                         </span>
+                        ${hasAIAnalysis ? '<span class="badge badge-ai">AI分析済</span>' : ''}
+                        ${importanceScore !== null ? `<span class="badge badge-importance importance-${this.getImportanceClass(importanceScore)}">${importanceScore}/10</span>` : ''}
                     </div>
                 </div>
                 
                 <div class="news-meta">
                     <span class="news-source">${this.escapeHtml(news.source)}</span>
                     <span class="news-date">${publishTime}</span>
+                    ${sentiment ? `<span class="sentiment sentiment-${sentiment.toLowerCase()}">${sentiment}</span>` : ''}
                 </div>
                 
-                ${preview ? `<div class="news-preview">${this.escapeHtml(preview)}</div>` : ''}
+                ${news.summary ? `<div class="news-summary"><strong>要約:</strong> ${this.escapeHtml(news.summary)}</div>` : ''}
+                ${preview && !news.summary ? `<div class="news-preview">${this.escapeHtml(preview)}</div>` : ''}
                 
                 ${metals.length > 0 ? `
                     <div class="news-metals">
                         ${metals.map(metal => `<span class="metal-tag">${this.escapeHtml(metal)}</span>`).join('')}
                     </div>
                 ` : ''}
+                
             </div>
         `;
     }
@@ -284,6 +340,30 @@ class NewsWatcher {
                         ` : ''}
                     </div>
                     
+                    ${news.summary || news.sentiment || news.keywords ? `
+                        <div class="ai-analysis-section">
+                            <h4>AI分析結果</h4>
+                            ${news.summary ? `
+                                <div class="analysis-item">
+                                    <strong>要約:</strong>
+                                    <p>${this.escapeHtml(news.summary)}</p>
+                                </div>
+                            ` : ''}
+                            ${news.sentiment ? `
+                                <div class="analysis-item">
+                                    <strong>センチメント:</strong>
+                                    <span class="sentiment sentiment-${news.sentiment.toLowerCase()}">${news.sentiment}</span>
+                                </div>
+                            ` : ''}
+                            ${news.keywords ? `
+                                <div class="analysis-item">
+                                    <strong>キーワード:</strong>
+                                    <p>${this.escapeHtml(news.keywords)}</p>
+                                </div>
+                            ` : ''}
+                        </div>
+                    ` : ''}
+                    
                     <div class="news-detail-body">
                         <h4>本文</h4>
                         <div class="news-body-content">
@@ -292,7 +372,7 @@ class NewsWatcher {
                     </div>
                     
                     ${isManual ? `
-                        <div class="news-actions">
+                        <div class="news-detail-actions">
                             <button class="btn btn-danger" onclick="deleteNews('${news.news_id}')">
                                 <i class="fas fa-trash"></i> 削除
                             </button>
@@ -355,6 +435,10 @@ class NewsWatcher {
                     <p><strong>平均実行時間:</strong> ${stats.avg_execution_time.toFixed(2)}秒</p>
                 </div>
             `;
+            
+            // Gemini統計を読み込み表示
+            this.loadGeminiStats();
+            
         } catch (error) {
             console.error('統計読み込みエラー:', error);
         }
@@ -515,9 +599,11 @@ class NewsWatcher {
         statusDot.className = `status-dot ${type}`;
     }
     
-    showLoading() {
-        const container = document.getElementById('newsList');
-        container.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> 読み込み中...</div>';
+    showLoading(containerId = 'newsList') {
+        const container = document.getElementById(containerId);
+        if (container) {
+            container.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> 読み込み中...</div>';
+        }
     }
     
     showError(message) {
@@ -543,6 +629,51 @@ class NewsWatcher {
                 notification.remove();
             }
         }, 5000);
+    }
+    
+    getImportanceClass(score) {
+        if (score >= 8) return 'high';
+        if (score >= 6) return 'medium';
+        return 'low';
+    }
+    
+    async loadGeminiStats() {
+        try {
+            const result = await eel.get_gemini_stats()();
+            
+            if (result.success) {
+                const stats = result;
+                const geminiInfo = document.getElementById('geminiInfo') || this.createGeminiInfoSection();
+                
+                geminiInfo.innerHTML = `
+                    <h4>Gemini AI分析統計</h4>
+                    <div class="gemini-info-content">
+                        <p><strong>総分析数:</strong> ${stats.total_analyzed || 0}</p>
+                        <p><strong>成功:</strong> ${stats.successful_analyses || 0}</p>
+                        <p><strong>失敗:</strong> ${stats.failed_analyses || 0}</p>
+                        <p><strong>本日のコスト:</strong> $${(stats.daily_cost || 0).toFixed(4)}</p>
+                        <p><strong>残り予算:</strong> $${(stats.remaining_daily_budget || 0).toFixed(4)}</p>
+                        <p><strong>API呼び出し数:</strong> ${stats.api_calls_made || 0}</p>
+                        <p><strong>キャッシュヒット数:</strong> ${stats.cache_hits || 0}</p>
+                        ${stats.rate_limit_status ? `
+                            <p><strong>今分のリクエスト:</strong> ${stats.rate_limit_status.requests_this_minute || 0}/15</p>
+                            <p><strong>今日のリクエスト:</strong> ${stats.rate_limit_status.requests_today || 0}/1500</p>
+                        ` : ''}
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Gemini統計読み込みエラー:', error);
+        }
+    }
+    
+    createGeminiInfoSection() {
+        const systemInfo = document.getElementById('systemInfo');
+        const geminiInfo = document.createElement('div');
+        geminiInfo.id = 'geminiInfo';
+        geminiInfo.className = 'gemini-info';
+        systemInfo.parentNode.insertBefore(geminiInfo, systemInfo.nextSibling);
+        return geminiInfo;
     }
     
     escapeHtml(text) {
@@ -572,6 +703,7 @@ async function deleteNews(newsId) {
         newsWatcher.showError('削除に失敗しました: ' + error.message);
     }
 }
+
 
 // アプリケーション初期化
 let newsWatcher;

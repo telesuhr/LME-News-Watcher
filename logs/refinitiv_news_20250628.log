@@ -1,0 +1,206 @@
+2025-06-28 16:43:08,115 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 16:43:08,127 - RefinitivNewsCollector - INFO - Refinitivニュース収集開始
+2025-06-28 16:43:08,132 - RefinitivNewsCollector - INFO - 重複チェック用ID読み込み完了: 1 件
+2025-06-28 16:43:08,132 - RefinitivNewsCollector - INFO - 収集期間: 2025-06-27 16:43 - 2025-06-28 16:43
+2025-06-28 16:43:08,132 - RefinitivNewsCollector - INFO - カテゴリ 'lme_metals' の収集開始
+2025-06-28 16:43:08,703 - RefinitivNewsCollector - ERROR - ニュース取得エラー: LME copper - datetime64 values must have a unit specified
+2025-06-28 16:43:10,513 - RefinitivNewsCollector - ERROR - ニュース取得エラー: LME aluminium - datetime64 values must have a unit specified
+2025-06-28 16:43:11,881 - RefinitivNewsCollector - ERROR - ニュース取得エラー: LME zinc - datetime64 values must have a unit specified
+2025-06-28 16:43:13,155 - RefinitivNewsCollector - ERROR - ニュース取得エラー: LME lead - datetime64 values must have a unit specified
+2025-06-28 16:43:14,486 - RefinitivNewsCollector - ERROR - ニュース取得エラー: LME nickel - datetime64 values must have a unit specified
+2025-06-28 16:43:15,752 - RefinitivNewsCollector - ERROR - ニュース取得エラー: LME tin - datetime64 values must have a unit specified
+2025-06-28 16:43:17,043 - RefinitivNewsCollector - ERROR - ニュース取得エラー: London Metal Exchange - datetime64 values must have a unit specified
+2025-06-28 16:43:18,048 - RefinitivNewsCollector - INFO - カテゴリ 'base_metals' の収集開始
+2025-06-28 16:43:29,268 - RefinitivNewsCollector - INFO - クエリ 'copper price' で 24 件のニュースを取得
+2025-06-28 16:43:31,101 - RefinitivNewsCollector - ERROR - ニュース取得エラー: aluminium price - datetime64 values must have a unit specified
+2025-06-28 16:43:33,147 - RefinitivNewsCollector - INFO - クエリ 'zinc price' で 0 件のニュースを取得
+2025-06-28 16:43:34,785 - RefinitivNewsCollector - ERROR - ニュース取得エラー: lead price - datetime64 values must have a unit specified
+2025-06-28 16:43:36,847 - RefinitivNewsCollector - ERROR - ニュース取得エラー: nickel price - datetime64 values must have a unit specified
+2025-06-28 16:43:38,594 - RefinitivNewsCollector - ERROR - ニュース取得エラー: tin price - datetime64 values must have a unit specified
+2025-06-28 16:44:00,001 - RefinitivNewsCollector - INFO - クエリ 'base metals' で 48 件のニュースを取得
+2025-06-28 16:44:26,093 - RefinitivNewsCollector - INFO - クエリ 'industrial metals' で 50 件のニュースを取得
+2025-06-28 16:44:27,094 - RefinitivNewsCollector - INFO - カテゴリ 'market_general' の収集開始
+2025-06-28 16:44:27,762 - RefinitivNewsCollector - ERROR - ニュース取得エラー: metal market - datetime64 values must have a unit specified
+2025-06-28 16:44:38,998 - RefinitivNewsCollector - INFO - クエリ 'commodity market' で 22 件のニュースを取得
+2025-06-28 16:44:50,796 - RefinitivNewsCollector - INFO - クエリ 'mining industry' で 24 件のニュースを取得
+2025-06-28 16:44:52,535 - RefinitivNewsCollector - ERROR - ニュース取得エラー: smelter - datetime64 values must have a unit specified
+2025-06-28 16:45:00,759 - RefinitivNewsCollector - INFO - クエリ 'refinery' で 15 件のニュースを取得
+2025-06-28 16:45:02,470 - RefinitivNewsCollector - ERROR - ニュース取得エラー: metal inventory - datetime64 values must have a unit specified
+2025-06-28 16:45:04,094 - RefinitivNewsCollector - ERROR - ニュース取得エラー: metal stockpile - datetime64 values must have a unit specified
+2025-06-28 16:45:05,098 - RefinitivNewsCollector - INFO - カテゴリ 'china_related' の収集開始
+2025-06-28 16:45:41,028 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 16:45:41,287 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 16:45:41,287 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 16:51:03,806 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 16:51:04,061 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 16:51:04,061 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 16:52:35,117 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 16:52:35,117 - RefinitivNewsCollector - INFO - Refinitivニュース収集開始
+2025-06-28 16:52:35,140 - RefinitivNewsCollector - INFO - 重複チェック用ID読み込み完了: 4 件
+2025-06-28 16:52:35,142 - RefinitivNewsCollector - INFO - 収集期間: 2025-06-27 16:52 - 2025-06-28 16:52
+2025-06-28 16:52:35,142 - RefinitivNewsCollector - INFO - カテゴリ 'test_query' の収集開始
+2025-06-28 16:52:37,961 - RefinitivNewsCollector - INFO - クエリ 'copper price' で 5 件のニュースを取得
+2025-06-28 16:52:39,009 - RefinitivNewsCollector - INFO - ニュース収集完了: 5 件保存、実行時間: 3.89秒
+2025-06-28 16:53:01,170 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 16:53:01,429 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 16:53:01,429 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 16:56:54,370 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 16:56:54,396 - RefinitivNewsCollector - INFO - 重複チェック用ID読み込み完了: 5 件
+2025-06-28 16:56:54,773 - RefinitivNewsCollector - ERROR - ニュース取得エラー: LME copper - datetime64 values must have a unit specified
+2025-06-28 16:57:21,485 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 16:57:21,509 - RefinitivNewsCollector - INFO - 重複チェック用ID読み込み完了: 5 件
+2025-06-28 16:57:22,229 - RefinitivNewsCollector - ERROR - ニュース取得エラー: copper price - datetime64 values must have a unit specified
+2025-06-28 16:57:22,843 - RefinitivNewsCollector - ERROR - ニュース取得エラー: metal market - datetime64 values must have a unit specified
+2025-06-28 16:57:59,944 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 16:58:19,466 - RefinitivNewsCollector - INFO - クエリ 'copper' で 50 件のニュースを取得
+2025-06-28 16:58:34,870 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 16:58:35,131 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 16:58:35,131 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:00:31,438 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:00:31,439 - RefinitivNewsCollector - INFO - Refinitivニュース収集開始
+2025-06-28 17:00:31,452 - RefinitivNewsCollector - INFO - 重複チェック用ID読み込み完了: 0 件
+2025-06-28 17:00:31,452 - RefinitivNewsCollector - INFO - 収集期間: 2025-06-27 17:00 - 2025-06-28 17:00
+2025-06-28 17:00:31,452 - RefinitivNewsCollector - INFO - カテゴリ 'lme_metals' の収集開始
+2025-06-28 17:00:31,743 - RefinitivNewsCollector - ERROR - ニュース取得エラー: LME copper - datetime64 values must have a unit specified
+2025-06-28 17:00:33,031 - RefinitivNewsCollector - ERROR - ニュース取得エラー: LME aluminium - datetime64 values must have a unit specified
+2025-06-28 17:00:34,296 - RefinitivNewsCollector - ERROR - ニュース取得エラー: LME zinc - datetime64 values must have a unit specified
+2025-06-28 17:00:36,734 - RefinitivNewsCollector - ERROR - ニュース取得エラー: LME lead - datetime64 values must have a unit specified
+2025-06-28 17:00:37,992 - RefinitivNewsCollector - ERROR - ニュース取得エラー: LME nickel - datetime64 values must have a unit specified
+2025-06-28 17:00:39,323 - RefinitivNewsCollector - ERROR - ニュース取得エラー: LME tin - datetime64 values must have a unit specified
+2025-06-28 17:00:40,608 - RefinitivNewsCollector - ERROR - ニュース取得エラー: London Metal Exchange - datetime64 values must have a unit specified
+2025-06-28 17:00:41,617 - RefinitivNewsCollector - INFO - カテゴリ 'base_metals' の収集開始
+2025-06-28 17:00:54,613 - RefinitivNewsCollector - INFO - クエリ 'copper price' で 24 件のニュースを取得
+2025-06-28 17:00:56,318 - RefinitivNewsCollector - ERROR - ニュース取得エラー: aluminium price - datetime64 values must have a unit specified
+2025-06-28 17:00:58,290 - RefinitivNewsCollector - INFO - クエリ 'zinc price' で 0 件のニュースを取得
+2025-06-28 17:01:00,059 - RefinitivNewsCollector - ERROR - ニュース取得エラー: lead price - datetime64 values must have a unit specified
+2025-06-28 17:01:01,709 - RefinitivNewsCollector - ERROR - ニュース取得エラー: nickel price - datetime64 values must have a unit specified
+2025-06-28 17:01:03,437 - RefinitivNewsCollector - ERROR - ニュース取得エラー: tin price - datetime64 values must have a unit specified
+2025-06-28 17:01:23,442 - RefinitivNewsCollector - INFO - クエリ 'base metals' で 48 件のニュースを取得
+2025-06-28 17:01:48,934 - RefinitivNewsCollector - INFO - クエリ 'industrial metals' で 50 件のニュースを取得
+2025-06-28 17:01:49,939 - RefinitivNewsCollector - INFO - カテゴリ 'market_general' の収集開始
+2025-06-28 17:01:50,724 - RefinitivNewsCollector - ERROR - ニュース取得エラー: metal market - datetime64 values must have a unit specified
+2025-06-28 17:02:01,514 - RefinitivNewsCollector - INFO - クエリ 'commodity market' で 22 件のニュースを取得
+2025-06-28 17:02:13,046 - RefinitivNewsCollector - INFO - クエリ 'mining industry' で 24 件のニュースを取得
+2025-06-28 17:02:14,832 - RefinitivNewsCollector - ERROR - ニュース取得エラー: smelter - datetime64 values must have a unit specified
+2025-06-28 17:02:22,551 - RefinitivNewsCollector - INFO - クエリ 'refinery' で 15 件のニュースを取得
+2025-06-28 17:02:24,219 - RefinitivNewsCollector - ERROR - ニュース取得エラー: metal inventory - datetime64 values must have a unit specified
+2025-06-28 17:02:25,842 - RefinitivNewsCollector - ERROR - ニュース取得エラー: metal stockpile - datetime64 values must have a unit specified
+2025-06-28 17:02:26,847 - RefinitivNewsCollector - INFO - カテゴリ 'china_related' の収集開始
+2025-06-28 17:03:08,139 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:03:08,887 - RefinitivNewsCollector - ERROR - ニュース取得エラー: copper price - datetime64 values must have a unit specified
+2025-06-28 17:03:46,820 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:03:47,541 - RefinitivNewsCollector - ERROR - ニュース取得エラー: copper - datetime64 values must have a unit specified
+2025-06-28 17:04:19,263 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:04:19,263 - RefinitivNewsCollector - INFO - 過去3ヶ月のニュース一括収集開始
+2025-06-28 17:04:19,263 - RefinitivNewsCollector - INFO - 収集期間: 2025-03-30 - 2025-06-28
+2025-06-28 17:04:19,284 - RefinitivNewsCollector - INFO - 重複チェック用ID読み込み完了: 0 件
+2025-06-28 17:04:19,284 - RefinitivNewsCollector - INFO - クエリ 'copper' の収集開始
+2025-06-28 17:04:19,284 - RefinitivNewsCollector - INFO - 期間: 2025-03-30 - 2025-04-06
+2025-06-28 17:04:40,705 - RefinitivNewsCollector - INFO - クエリ 'copper' で 49 件のニュースを取得
+2025-06-28 17:04:40,706 - RefinitivNewsCollector - INFO - 取得: 49 件
+2025-06-28 17:04:42,708 - RefinitivNewsCollector - INFO - 期間: 2025-04-06 - 2025-04-13
+2025-06-28 17:05:04,828 - RefinitivNewsCollector - INFO - クエリ 'copper' で 49 件のニュースを取得
+2025-06-28 17:05:04,829 - RefinitivNewsCollector - INFO - 取得: 49 件
+2025-06-28 17:05:06,829 - RefinitivNewsCollector - INFO - 期間: 2025-04-13 - 2025-04-20
+2025-06-28 17:05:36,294 - RefinitivNewsCollector - INFO - クエリ 'copper' で 49 件のニュースを取得
+2025-06-28 17:05:36,297 - RefinitivNewsCollector - INFO - 取得: 49 件
+2025-06-28 17:05:38,302 - RefinitivNewsCollector - INFO - 期間: 2025-04-20 - 2025-04-27
+2025-06-28 17:06:07,202 - RefinitivNewsCollector - INFO - クエリ 'copper' で 50 件のニュースを取得
+2025-06-28 17:06:07,203 - RefinitivNewsCollector - INFO - 取得: 50 件
+2025-06-28 17:06:09,203 - RefinitivNewsCollector - INFO - 期間: 2025-04-27 - 2025-05-04
+2025-06-28 17:07:31,773 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:07:54,541 - RefinitivNewsCollector - INFO - クエリ 'copper' で 50 件のニュースを取得
+2025-06-28 17:08:13,952 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:08:44,372 - RefinitivNewsCollector - INFO - クエリ 'copper' で 50 件のニュースを取得
+2025-06-28 17:09:08,698 - RefinitivNewsCollector - INFO - クエリ 'copper' で 50 件のニュースを取得
+2025-06-28 17:09:29,624 - RefinitivNewsCollector - INFO - クエリ 'copper' で 50 件のニュースを取得
+2025-06-28 17:09:53,383 - RefinitivNewsCollector - INFO - クエリ 'aluminium' で 50 件のニュースを取得
+2025-06-28 17:10:34,917 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:10:35,175 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:10:35,175 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:12:32,874 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:12:56,238 - RefinitivNewsCollector - INFO - クエリ 'copper' で 49 件のニュースを取得
+2025-06-28 17:13:18,328 - RefinitivNewsCollector - INFO - クエリ 'copper' で 50 件のニュースを取得
+2025-06-28 17:13:41,580 - RefinitivNewsCollector - INFO - クエリ 'copper' で 50 件のニュースを取得
+2025-06-28 17:14:01,928 - RefinitivNewsCollector - INFO - クエリ 'copper' で 50 件のニュースを取得
+2025-06-28 17:14:21,658 - RefinitivNewsCollector - INFO - クエリ 'copper' で 50 件のニュースを取得
+2025-06-28 17:15:02,402 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:15:21,054 - RefinitivNewsCollector - INFO - クエリ 'copper' で 50 件のニュースを取得
+2025-06-28 17:15:43,999 - RefinitivNewsCollector - INFO - クエリ 'metals' で 49 件のニュースを取得
+2025-06-28 17:15:47,294 - RefinitivNewsCollector - ERROR - ニュース取得エラー: LME - datetime64 values must have a unit specified
+2025-06-28 17:16:09,568 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:16:31,778 - RefinitivNewsCollector - INFO - クエリ 'copper' で 50 件のニュースを取得
+2025-06-28 17:16:53,536 - RefinitivNewsCollector - INFO - クエリ 'copper' で 50 件のニュースを取得
+2025-06-28 17:17:18,099 - RefinitivNewsCollector - INFO - クエリ 'copper' で 50 件のニュースを取得
+2025-06-28 17:17:41,172 - RefinitivNewsCollector - INFO - クエリ 'copper' で 50 件のニュースを取得
+2025-06-28 17:18:02,831 - RefinitivNewsCollector - INFO - クエリ 'copper' で 50 件のニュースを取得
+2025-06-28 17:18:11,779 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:18:12,036 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:18:12,036 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:21:58,653 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:21:58,911 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:21:58,911 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:24:57,524 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:24:57,780 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:24:57,780 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:40:10,714 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:40:10,973 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:40:10,973 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:40:20,282 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:40:20,282 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:40:20,282 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:42:47,210 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:42:47,210 - RefinitivNewsCollector - INFO - Refinitivニュース収集開始
+2025-06-28 17:42:47,240 - RefinitivNewsCollector - INFO - 重複チェック用ID読み込み完了: 56 件
+2025-06-28 17:42:47,240 - RefinitivNewsCollector - INFO - 収集期間: 2025-06-27 17:42 - 2025-06-28 17:42
+2025-06-28 17:42:47,240 - RefinitivNewsCollector - INFO - カテゴリ 'lme_metals' の収集開始
+2025-06-28 17:42:47,952 - RefinitivNewsCollector - ERROR - ニュース取得エラー: LME copper - datetime64 values must have a unit specified
+2025-06-28 17:42:49,222 - RefinitivNewsCollector - ERROR - ニュース取得エラー: LME aluminium - datetime64 values must have a unit specified
+2025-06-28 17:42:50,708 - RefinitivNewsCollector - ERROR - ニュース取得エラー: LME zinc - datetime64 values must have a unit specified
+2025-06-28 17:42:51,969 - RefinitivNewsCollector - ERROR - ニュース取得エラー: LME lead - datetime64 values must have a unit specified
+2025-06-28 17:42:53,241 - RefinitivNewsCollector - ERROR - ニュース取得エラー: LME nickel - datetime64 values must have a unit specified
+2025-06-28 17:42:54,757 - RefinitivNewsCollector - ERROR - ニュース取得エラー: LME tin - datetime64 values must have a unit specified
+2025-06-28 17:42:56,340 - RefinitivNewsCollector - ERROR - ニュース取得エラー: London Metal Exchange - datetime64 values must have a unit specified
+2025-06-28 17:42:57,344 - RefinitivNewsCollector - INFO - カテゴリ 'base_metals' の収集開始
+2025-06-28 17:43:08,112 - RefinitivNewsCollector - INFO - クエリ 'copper price' で 22 件のニュースを取得
+2025-06-28 17:43:09,731 - RefinitivNewsCollector - ERROR - ニュース取得エラー: aluminium price - datetime64 values must have a unit specified
+2025-06-28 17:43:11,850 - RefinitivNewsCollector - INFO - クエリ 'zinc price' で 0 件のニュースを取得
+2025-06-28 17:43:13,638 - RefinitivNewsCollector - ERROR - ニュース取得エラー: lead price - datetime64 values must have a unit specified
+2025-06-28 17:43:15,282 - RefinitivNewsCollector - ERROR - ニュース取得エラー: nickel price - datetime64 values must have a unit specified
+2025-06-28 17:43:17,138 - RefinitivNewsCollector - ERROR - ニュース取得エラー: tin price - datetime64 values must have a unit specified
+2025-06-28 17:43:37,119 - RefinitivNewsCollector - INFO - クエリ 'base metals' で 45 件のニュースを取得
+2025-06-28 17:44:02,082 - RefinitivNewsCollector - INFO - クエリ 'industrial metals' で 50 件のニュースを取得
+2025-06-28 17:44:03,088 - RefinitivNewsCollector - INFO - カテゴリ 'market_general' の収集開始
+2025-06-28 17:44:03,736 - RefinitivNewsCollector - ERROR - ニュース取得エラー: metal market - datetime64 values must have a unit specified
+2025-06-28 17:44:14,016 - RefinitivNewsCollector - INFO - クエリ 'commodity market' で 22 件のニュースを取得
+2025-06-28 17:44:25,080 - RefinitivNewsCollector - INFO - クエリ 'mining industry' で 24 件のニュースを取得
+2025-06-28 17:44:26,773 - RefinitivNewsCollector - ERROR - ニュース取得エラー: smelter - datetime64 values must have a unit specified
+2025-06-28 17:44:34,311 - RefinitivNewsCollector - INFO - クエリ 'refinery' で 15 件のニュースを取得
+2025-06-28 17:44:36,012 - RefinitivNewsCollector - ERROR - ニュース取得エラー: metal inventory - datetime64 values must have a unit specified
+2025-06-28 17:44:37,619 - RefinitivNewsCollector - ERROR - ニュース取得エラー: metal stockpile - datetime64 values must have a unit specified
+2025-06-28 17:44:38,624 - RefinitivNewsCollector - INFO - カテゴリ 'china_related' の収集開始
+2025-06-28 17:44:54,099 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:44:54,357 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:44:54,357 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:45:44,149 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:45:44,407 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:45:44,407 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:49:40,284 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:56:25,903 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 17:59:36,148 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 18:00:25,669 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 18:00:25,928 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 18:00:25,928 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 18:03:52,098 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 18:06:51,681 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 18:08:56,811 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 18:08:57,071 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 18:08:57,071 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 18:13:02,067 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 18:15:07,806 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 18:15:08,066 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 18:15:08,066 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 18:18:53,103 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 18:22:42,165 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 18:22:42,426 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了
+2025-06-28 18:22:42,426 - RefinitivNewsCollector - INFO - Refinitiv EIKON API初期化完了

@@ -1,6 +1,5 @@
 {
-  "eikon_api_key": "YOUR_EIKON_API_KEY_HERE",
-  
+  "eikon_api_key": "1475940198b04fdab9265b7892546cc2ead9eda6",
   "database": {
     "database_type": "postgresql",
     "host": "localhost",
@@ -9,7 +8,6 @@
     "user": "Yusuke",
     "password": ""
   },
-  
   "news_collection": {
     "polling_interval_minutes": 5,
     "collection_period_hours": 24,
@@ -18,11 +16,10 @@
     "query_interval": 1.0,
     "duplicate_check_days": 7,
     "lme_only_filter": false,
-    
     "query_categories": {
       "lme_metals": [
         "LME copper",
-        "LME aluminium", 
+        "LME aluminium",
         "LME zinc",
         "LME lead",
         "LME nickel",
@@ -32,7 +29,7 @@
       "base_metals": [
         "copper price",
         "aluminium price",
-        "zinc price", 
+        "zinc price",
         "lead price",
         "nickel price",
         "tin price",
@@ -58,7 +55,7 @@
       ],
       "supply_demand": [
         "metal production",
-        "mining output", 
+        "mining output",
         "smelter production",
         "metal demand",
         "industrial demand",
@@ -73,30 +70,58 @@
         "export restrictions"
       ]
     },
-    
     "lme_keywords": [
-      "LME", "london metal exchange", "lme copper", "lme aluminium",
-      "lme zinc", "lme lead", "lme nickel", "lme tin", "lme warehouse",
-      "lme inventory", "lme stocks", "lme prices"
+      "LME",
+      "london metal exchange",
+      "lme copper",
+      "lme aluminium",
+      "lme zinc",
+      "lme lead",
+      "lme nickel",
+      "lme tin",
+      "lme warehouse",
+      "lme inventory",
+      "lme stocks",
+      "lme prices"
     ],
-    
     "market_keywords": [
-      "copper", "aluminium", "aluminum", "zinc", "lead", "nickel", "tin",
-      "base metals", "industrial metals", "metal market", "commodity",
-      "mining", "smelter", "refinery", "inventory", "stockpile",
-      "production", "demand", "supply"
+      "copper",
+      "aluminium",
+      "aluminum",
+      "zinc",
+      "lead",
+      "nickel",
+      "tin",
+      "base metals",
+      "industrial metals",
+      "metal market",
+      "commodity",
+      "mining",
+      "smelter",
+      "refinery",
+      "inventory",
+      "stockpile",
+      "production",
+      "demand",
+      "supply"
     ],
-    
     "excluded_sources": [
-      "SPAM_SOURCE", "SOCIAL_MEDIA", "BLOG", "FORUM"
+      "SPAM_SOURCE",
+      "SOCIAL_MEDIA",
+      "BLOG",
+      "FORUM"
     ],
-    
     "priority_sources": [
-      "REUTERS", "BLOOMBERG", "FASTMARKETS", "METAL BULLETIN",
-      "S&P GLOBAL", "PLATTS", "MINING.COM", "ARGUS MEDIA"
+      "REUTERS",
+      "BLOOMBERG",
+      "FASTMARKETS",
+      "METAL BULLETIN",
+      "S&P GLOBAL",
+      "PLATTS",
+      "MINING.COM",
+      "ARGUS MEDIA"
     ]
   },
-  
   "manual_entry": {
     "enable_manual_registration": true,
     "require_source": true,
@@ -106,10 +131,12 @@
     "validation_rules": {
       "max_title_length": 500,
       "max_body_length": 10000,
-      "required_fields": ["title", "body"]
+      "required_fields": [
+        "title",
+        "body"
+      ]
     }
   },
-  
   "ui_settings": {
     "news_per_page": 50,
     "auto_refresh_interval": 300,
@@ -118,7 +145,6 @@
     "default_date_range_days": 7,
     "max_search_results": 1000
   },
-  
   "logging": {
     "log_level": "INFO",
     "log_directory": "logs",
@@ -126,7 +152,6 @@
     "backup_count": 5,
     "enable_debug": false
   },
-  
   "performance": {
     "max_retries": 3,
     "retry_delay_seconds": 5,
@@ -134,32 +159,50 @@
     "batch_size": 100,
     "connection_pool_size": 5
   },
-  
   "alerts": {
     "enable_error_alerts": true,
     "critical_error_threshold": 5,
     "collection_failure_threshold": 0.7,
     "low_collection_count_threshold": 5
   },
-  
   "backup": {
     "enable_auto_backup": false,
     "backup_interval_days": 7,
     "backup_retention_days": 30,
     "backup_directory": "backups"
   },
-  
   "gemini_integration": {
-    "enable_ai_analysis": false,
-    "api_key": "YOUR_GEMINI_API_KEY_HERE",
-    "analysis_enabled": false,
-    "sentiment_analysis": false,
-    "summary_generation": false,
-    "keyword_extraction": false,
+    "enable_ai_analysis": true,
+    "api_key": "AIzaSyAxNKqcsNuDiNAJdnUTdk5WdftqJXnWmtQ",
+    "model": "gemini-1.5-pro",
+    "fallback_model": "gemini-1.5-flash",
+    "analysis_enabled": true,
+    "sentiment_analysis": true,
+    "summary_generation": true,
+    "keyword_extraction": true,
+    "importance_scoring": true,
     "batch_processing": true,
-    "max_text_length": 5000
+    "max_text_length": 4000,
+    "max_requests_per_minute": 15,
+    "max_requests_per_day": 1500,
+    "rate_limit_delay": 4.5,
+    "retry_attempts": 3,
+    "retry_delay": 10,
+    "cost_optimization": {
+      "prefer_flash_model": false,
+      "skip_duplicate_analysis": true,
+      "analyze_only_important_news": false,
+      "importance_threshold": 5,
+      "batch_size": 3,
+      "max_daily_cost_usd": 10.0
+    },
+    "analysis_prompts": {
+      "summary": "以下の金融ニュースを要約し、特に**LME非鉄金属市場または関連するコモディティ市場への潜在的な影響**に焦点を当ててください。要約は**最大3文**とし、最後に**ポジティブ、ネガティブ、または中立**のセンチメントを評価してください：",
+      "sentiment": "以下のニュースの市場センチメントを「ポジティブ」「ネガティブ」「ニュートラル」で評価し、LME金属市場への影響理由を具体的に述べてください：",
+      "keywords": "このニュースから重要なキーワードを8個以内で抽出してください。金属名、価格用語、市場用語、企業名、地域名を含めてカンマ区切りで：",
+      "importance": "このニュースのLME金属市場への重要度を1-10で評価し、評価理由を具体的に述べてください。価格への影響、市場規模、時間的影響を考慮して："
+    }
   },
-  
   "migration": {
     "target_database": "sqlserver",
     "migration_planned": true,
