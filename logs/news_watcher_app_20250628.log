@@ -74,3 +74,11 @@
 2025-06-28 23:16:58,146 - NewsWatcherApp - INFO - AI分析完了: manual_f96c8c7c7bdd
 2025-06-28 23:17:54,375 - NewsWatcherApp - INFO - 手動分析用高速モデル使用: gemini-1.5-flash
 2025-06-28 23:17:54,375 - NewsWatcherApp - INFO - 手動分析用高速モデル使用: gemini-1.5-flash
+2025-06-28 23:24:42,141 - NewsWatcherApp - INFO - バックグラウンドポーリング開始
+2025-06-28 23:24:42,143 - NewsWatcherApp - INFO - UIアプリケーション開始
+2025-06-28 23:24:55,759 - NewsWatcherApp - INFO - 手動分析用高速モデル使用: gemini-1.5-flash
+2025-06-28 23:24:55,759 - NewsWatcherApp - INFO - 手動分析用高速モデル使用: gemini-1.5-flash
+2025-06-28 23:25:22,070 - NewsWatcherApp - INFO - AI分析完了: urn:newsml:newswire.refinitiv.com:20250627:nDJRFYFjX:1_7-0日前
+2025-06-28 23:25:22,070 - NewsWatcherApp - INFO - AI分析完了: urn:newsml:newswire.refinitiv.com:20250627:nDJRFYFjX:1_7-0日前
+2025-06-28 23:26:27,824 - NewsWatcherApp - INFO - バックグラウンドポーリング停止
+2025-06-28 23:26:27,824 - NewsWatcherApp - INFO - バックグラウンドポーリング停止
