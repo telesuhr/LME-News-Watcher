@@ -4,7 +4,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
 develop-eggs/
 dist/
 downloads/
@@ -68,10 +67,13 @@ config_local.json
 # Temporary files
 temp/
 tmp/
-test_*.py
 bulk_*.py
 *_temp.py
-*_test.py
+
+# Release builds
+release/
+*.exe
+*.msi
 
 # OS
 .DS_Store
