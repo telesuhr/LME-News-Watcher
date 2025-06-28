@@ -663,6 +663,10 @@ class NewsWatcher {
         this.showNotification(message, 'success');
     }
     
+    showInfo(message) {
+        this.showNotification(message, 'info');
+    }
+    
     showNotification(message, type = 'info') {
         const notification = document.createElement('div');
         notification.className = `notification notification-${type}`;
