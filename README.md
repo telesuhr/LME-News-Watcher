@@ -98,6 +98,8 @@ NewsCollector/
 │
 ├── 📚 Documentation
 │   └── docs/
+│       ├── USER_MANUAL.md        # 室員向けマニュアル
+│       ├── SETUP_GUIDE.md        # セットアップガイド
 │       ├── WINDOWS_EXE_BUILD.md  # EXE作成ガイド
 │       ├── WINDOWS_JCL_SETUP.md  # JCL設定ガイド
 │       └── WINDOWS_SETUP.md      # Windows設定ガイド
@@ -193,6 +195,8 @@ python tests/test_manual_ai_analysis.py
 - ネットワーク接続確認
 
 ### 詳細ガイド
+- **[📖 室員向けマニュアル](docs/USER_MANUAL.md)** - 日常使用方法
+- **[⚙️ セットアップガイド](docs/SETUP_GUIDE.md)** - 詳細インストール手順
 - [Windows JCL設定](docs/WINDOWS_JCL_SETUP.md)
 - [EXE作成手順](docs/WINDOWS_EXE_BUILD.md)
 - [Windows環境設定](docs/WINDOWS_SETUP.md)

@@ -20,6 +20,7 @@ from models_spec import NewsArticle, NewsSearchFilter, validate_manual_news_inpu
 from database_spec import SpecDatabaseManager
 from news_collector_spec import RefinitivNewsCollector, NewsPollingService
 from database_detector import DatabaseDetector
+from refinitiv_detector import RefinitivDetector, ApplicationModeManager
 
 class NewsWatcherApp:
     """ニュースウォッチャーアプリケーション"""
@@ -31,6 +32,11 @@ class NewsWatcherApp:
         
         # データベース自動検出
         self.db_manager = self._setup_database()
+        
+        # Refinitiv接続検出とモード管理
+        self.refinitiv_detector = RefinitivDetector(self.config["eikon_api_key"])
+        self.mode_manager = ApplicationModeManager(self.refinitiv_detector)
+        self.current_mode = "unknown"
         
         self.news_collector = None
         self.polling_service = None
@@ -90,16 +96,24 @@ class NewsWatcherApp:
         
         print(f"\n選択されたデータベース: {db_type}")
         
-        # データベースマネージャー作成
-        return SpecDatabaseManager(db_config)
+        # データベースマネージャー作成（全体設定を渡してURLフィルタリング設定にアクセス）
+        full_config = self.config.copy()
+        full_config["database"] = db_config
+        return SpecDatabaseManager(full_config)
     
     def start_background_polling(self):
-        """バックグラウンドポーリング開始"""
+        """バックグラウンドポーリング開始（Activeモードのみ）"""
         if self.is_polling_active:
             return
         
+        # Refinitiv利用可能性チェック
+        is_available, message = self.refinitiv_detector.check_refinitiv_availability()
+        if not is_available:
+            self.logger.warning(f"Refinitiv未利用可能のためポーリングスキップ: {message}")
+            return
+        
         try:
-            self.news_collector = RefinitivNewsCollector()
+            self.news_collector = RefinitivNewsCollector(self.config_path)
             self.polling_service = NewsPollingService(self.config_path)
             
             self.polling_thread = threading.Thread(
@@ -109,7 +123,7 @@ class NewsWatcherApp:
             self.polling_thread.start()
             self.is_polling_active = True
             
-            self.logger.info("バックグラウンドポーリング開始")
+            self.logger.info("バックグラウンドポーリング開始（Activeモード）")
             
         except Exception as e:
             self.logger.error(f"ポーリング開始エラー: {e}")
@@ -119,8 +133,11 @@ class NewsWatcherApp:
         while self.is_polling_active:
             try:
                 # ニュース収集実行
-                collected_count = self.news_collector.collect_news()
+                collected_count = self.news_collector.collect_news(collection_mode="background")
                 self.logger.info(f"バックグラウンド収集: {collected_count} 件")
+                
+                # 高評価ニュース通知チェック
+                self._check_high_importance_news()
                 
                 # 次回実行まで待機
                 polling_interval = self.config["news_collection"]["polling_interval_minutes"]
@@ -133,12 +150,88 @@ class NewsWatcherApp:
                 self.logger.error(f"ポーリングエラー: {e}")
                 time.sleep(60)  # エラー時は1分待機
     
+    def _check_high_importance_news(self):
+        """高評価ニュースの通知チェック"""
+        try:
+            # 過去5分間の高評価ニュース（importance_score >= 8）を取得
+            from models_spec import NewsSearchFilter
+            
+            search_filter = NewsSearchFilter()
+            search_filter.start_date = datetime.now() - timedelta(minutes=5)
+            search_filter.min_importance_score = 8
+            search_filter.limit = 10
+            
+            high_importance_news = self.db_manager.search_news(search_filter)
+            
+            for news in high_importance_news:
+                # 未通知のニュースのみ通知
+                if not self._is_already_notified(news['news_id']):
+                    self._send_high_importance_notification(news)
+                    self._mark_as_notified(news['news_id'])
+                    
+        except Exception as e:
+            self.logger.error(f"高評価ニュース通知チェックエラー: {e}")
+    
+    def _send_high_importance_notification(self, news):
+        """高評価ニュース通知を送信"""
+        try:
+            notification_data = {
+                'type': 'high_importance_news',
+                'news_id': news['news_id'],
+                'title': news['title'],
+                'importance_score': news.get('importance_score', 0),
+                'source': news['source'],
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            # WebUIに通知を送信（JavaScript側で受信）
+            eel.notify_high_importance_news(notification_data)
+            self.logger.info(f"高評価ニュース通知送信: {news['title']} (スコア: {news.get('importance_score', 0)})")
+            
+        except Exception as e:
+            self.logger.error(f"高評価ニュース通知送信エラー: {e}")
+    
+    def _is_already_notified(self, news_id):
+        """既に通知済みかチェック"""
+        # 簡易的にメモリ内で管理（実装を簡単にするため）
+        if not hasattr(self, '_notified_news_ids'):
+            self._notified_news_ids = set()
+        return news_id in self._notified_news_ids
+    
+    def _mark_as_notified(self, news_id):
+        """通知済みとしてマーク"""
+        if not hasattr(self, '_notified_news_ids'):
+            self._notified_news_ids = set()
+        self._notified_news_ids.add(news_id)
+        
+        # メモリ制限のため、100件を超えたら古いものを削除
+        if len(self._notified_news_ids) > 100:
+            # setから任意の要素を50件削除
+            for _ in range(50):
+                self._notified_news_ids.pop()
+    
     def stop_background_polling(self):
         """バックグラウンドポーリング停止"""
         self.is_polling_active = False
         if self.polling_thread and self.polling_thread.is_alive():
             self.polling_thread.join(timeout=5)
         self.logger.info("バックグラウンドポーリング停止")
+    
+    def _on_refinitiv_status_change(self, status_change: Dict):
+        """Refinitiv接続状態変更時のコールバック"""
+        self.logger.info(f"Refinitiv状態変更: {status_change}")
+        
+        # モード再評価
+        new_mode = self.mode_manager.determine_mode()
+        
+        if new_mode == "active" and not self.is_polling_active:
+            # Active モードに切り替わった場合
+            self.logger.info("Active モードに切り替え - バックグラウンドポーリング開始")
+            self.start_background_polling()
+        elif new_mode == "passive" and self.is_polling_active:
+            # Passive モードに切り替わった場合
+            self.logger.info("Passive モードに切り替え - バックグラウンドポーリング停止")
+            self.stop_background_polling()
     
     def run(self):
         """アプリケーション実行"""
@@ -151,11 +244,26 @@ class NewsWatcherApp:
             # テーブル作成
             self.db_manager.create_tables()
             
-            # バックグラウンドポーリング開始
-            self.start_background_polling()
+            # アプリケーションモード決定
+            self.current_mode = self.mode_manager.determine_mode()
+            mode_info = self.mode_manager.get_mode_info()
+            
+            print(f"\n=== アプリケーションモード ===")
+            print(f"モード: {self.current_mode.upper()}")
+            print(f"説明: {mode_info['mode_description']}")
+            print(f"Refinitiv状態: {mode_info['refinitiv_status']}")
+            
+            # モードに応じた初期化
+            if self.current_mode == "active":
+                # バックグラウンドポーリング開始
+                self.start_background_polling()
+                # Refinitiv状態の定期チェック開始
+                self.refinitiv_detector.start_periodic_check(self._on_refinitiv_status_change)
+            else:
+                print("Passiveモード: データベース閲覧・手動登録のみ利用可能")
             
             # UI開始
-            self.logger.info("UIアプリケーション開始")
+            self.logger.info(f"UIアプリケーション開始（{self.current_mode}モード）")
             eel.start('index.html', size=(1400, 900), port=8080)
             
         except Exception as e:
@@ -222,10 +330,37 @@ def search_news(search_params: Dict) -> Dict:
             search_filter.keyword = search_params['keyword']
         if search_params.get('source'):
             search_filter.source = search_params['source']
+            app.logger.info(f"ソースフィルター適用: '{search_params['source']}'")
+        else:
+            app.logger.info("ソースフィルターなし")
         if search_params.get('metal'):
             search_filter.related_metals = [search_params['metal']]
-        if search_params.get('is_manual') is not None:
+        if search_params.get('is_manual'):
             search_filter.is_manual = search_params['is_manual'] == 'true'
+            app.logger.info(f"手動登録フィルター適用: {search_filter.is_manual}")
+        else:
+            app.logger.info("手動登録フィルターなし（全て表示）")
+        if search_params.get('rating'):
+            try:
+                rating_value = int(search_params['rating'])
+                if 1 <= rating_value <= 3:
+                    search_filter.rating = rating_value
+            except (ValueError, TypeError):
+                pass  # 無効なレーティング値は無視
+        
+        # ソートパラメータ
+        if search_params.get('sort_by'):
+            sort_by = search_params['sort_by']
+            valid_sorts = ['smart', 'rating_priority', 'time_desc', 'time_asc', 'rating_desc', 'rating_asc', 'relevance']
+            if sort_by in valid_sorts:
+                search_filter.sort_by = sort_by
+        
+        # 既読フィルター
+        if search_params.get('is_read'):
+            search_filter.is_read = search_params['is_read'] == 'true'
+            app.logger.info(f"既読フィルター適用: {search_filter.is_read}")
+        else:
+            app.logger.info("既読フィルターなし（全て表示）")
         
         page = search_params.get('page', 1)
         per_page = search_params.get('per_page', 50)
@@ -258,6 +393,13 @@ def search_archive(search_params: Dict) -> Dict:
             search_filter.end_date = datetime.fromisoformat(search_params['end_date'] + 'T23:59:59')
         if search_params.get('keyword'):
             search_filter.keyword = search_params['keyword']
+        
+        # ソートパラメータ
+        if search_params.get('sort_by'):
+            sort_by = search_params['sort_by']
+            valid_sorts = ['smart', 'rating_priority', 'time_desc', 'time_asc', 'rating_desc', 'rating_asc', 'relevance']
+            if sort_by in valid_sorts:
+                search_filter.sort_by = sort_by
         
         page = search_params.get('page', 1)
         per_page = search_params.get('per_page', 50)
@@ -362,7 +504,11 @@ def get_sources_list() -> List[str]:
     """ソース一覧取得"""
     try:
         app = init_app()
-        return app.db_manager.get_sources_list()
+        sources = app.db_manager.get_sources_list()
+        app.logger.info(f"利用可能ソース一覧: {sources}")
+        
+        
+        return sources
     except Exception as e:
         app.logger.error(f"ソース一覧取得エラー: {e}")
         return []
@@ -426,9 +572,12 @@ def manual_collect_news() -> Dict:
         if not app.news_collector:
             app.news_collector = RefinitivNewsCollector(app.config_path)
         
-        app.logger.info("手動ニュース収集開始")
-        collected_count = app.news_collector.collect_news()
+        app.logger.info("手動ニュース収集開始（高速モード）")
+        collected_count = app.news_collector.collect_news(collection_mode="manual")
         app.logger.info(f"手動ニュース収集完了: {collected_count}件")
+        
+        # 手動収集後も高評価ニュース通知をチェック
+        app._check_high_importance_news()
         
         return {
             'success': True,
@@ -445,15 +594,25 @@ def get_app_status() -> Dict:
     try:
         app = init_app()
         
+        # モード情報取得
+        mode_info = app.mode_manager.get_mode_info()
+        refinitiv_status = app.refinitiv_detector.get_connection_status()
+        
         return {
             'database_connected': app.db_manager.test_connection(),
             'polling_active': app.is_polling_active,
+            'current_mode': app.current_mode,
+            'mode_description': mode_info['mode_description'],
+            'refinitiv_available': refinitiv_status['is_available'],
+            'refinitiv_status': refinitiv_status['status'],
+            'features_available': mode_info['features_available'],
             'last_update': datetime.now().isoformat()
         }
     except Exception as e:
         return {
             'database_connected': False,
             'polling_active': False,
+            'current_mode': 'error',
             'error': str(e)
         }
 
@@ -466,6 +625,9 @@ def get_gemini_stats() -> Dict:
         
         if not hasattr(app, 'news_collector') or not app.news_collector:
             return {'success': False, 'error': 'ニュース収集器が初期化されていません'}
+        
+        if not hasattr(app.news_collector, 'gemini_analyzer') or not app.news_collector.gemini_analyzer:
+            return {'success': False, 'error': 'Gemini分析器が初期化されていません'}
         
         stats = app.news_collector.gemini_analyzer.get_analysis_stats()
         return {'success': True, **stats}
@@ -486,7 +648,7 @@ def analyze_single_news(news_id: str) -> Dict:
         
         # ニュース収集器初期化（未初期化の場合）
         if not app.news_collector:
-            app.news_collector = RefinitivNewsCollector()
+            app.news_collector = RefinitivNewsCollector(app.config_path)
         
         # 既存の分析を一時的にクリアして強制的に再分析
         news_for_analysis = news.copy()
@@ -570,6 +732,239 @@ def update_news_analysis(analysis_data: Dict) -> Dict:
     except Exception as e:
         app.logger.error(f"分析更新エラー: {e}")
         return {'success': False, 'error': str(e)}
+
+@eel.expose
+def check_refinitiv_status() -> Dict:
+    """Refinitiv接続状態の強制チェック"""
+    try:
+        app = init_app()
+        
+        # 強制的に再チェック実行
+        is_available, message = app.refinitiv_detector.force_recheck()
+        
+        # モード再評価
+        old_mode = app.current_mode
+        new_mode = app.mode_manager.determine_mode()
+        
+        return {
+            'success': True,
+            'refinitiv_available': is_available,
+            'status_message': message,
+            'old_mode': old_mode,
+            'new_mode': new_mode,
+            'mode_changed': old_mode != new_mode,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        app.logger.error(f"Refinitiv状態チェックエラー: {e}")
+        return {'success': False, 'error': str(e)}
+
+@eel.expose
+def get_search_keywords() -> Dict:
+    """現在の検索キーワード設定を取得"""
+    try:
+        app = init_app()
+        
+        news_config = app.config.get('news_collection', {})
+        return {
+            'success': True,
+            'query_categories': news_config.get('query_categories', {}),
+            'lme_keywords': news_config.get('lme_keywords', []),
+            'market_keywords': news_config.get('market_keywords', [])
+        }
+        
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+@eel.expose
+def update_search_keywords(keywords_data: Dict) -> Dict:
+    """検索キーワード設定を更新"""
+    try:
+        app = init_app()
+        
+        # 設定ファイル更新
+        if 'query_categories' in keywords_data:
+            app.config['news_collection']['query_categories'] = keywords_data['query_categories']
+        if 'lme_keywords' in keywords_data:
+            app.config['news_collection']['lme_keywords'] = keywords_data['lme_keywords']
+        if 'market_keywords' in keywords_data:
+            app.config['news_collection']['market_keywords'] = keywords_data['market_keywords']
+        
+        # 設定ファイル保存
+        with open(app.config_path, 'w', encoding='utf-8') as f:
+            json.dump(app.config, f, ensure_ascii=False, indent=2)
+        
+        app.logger.info("検索キーワード設定を更新")
+        return {'success': True}
+        
+    except Exception as e:
+        app.logger.error(f"キーワード設定更新エラー: {e}")
+        return {'success': False, 'error': str(e)}
+
+@eel.expose
+def get_duplicate_stats() -> Dict:
+    """重複ニュース統計を取得"""
+    try:
+        app = init_app()
+        duplicate_stats = app.db_manager.get_duplicate_stats()
+        return {'success': True, **duplicate_stats}
+    except Exception as e:
+        app.logger.error(f"重複統計取得エラー: {e}")
+        return {'success': False, 'error': str(e)}
+
+@eel.expose
+def remove_duplicate_news(keep_latest: bool = True) -> Dict:
+    """重複ニュースを削除"""
+    try:
+        app = init_app()
+        deleted_count = app.db_manager.remove_duplicate_news(keep_latest)
+        app.logger.info(f"重複ニュース削除: {deleted_count}件")
+        return {
+            'success': True, 
+            'deleted_count': deleted_count,
+            'message': f'{deleted_count}件の重複ニュースを削除しました'
+        }
+    except Exception as e:
+        app.logger.error(f"重複ニュース削除エラー: {e}")
+        return {'success': False, 'error': str(e)}
+
+@eel.expose
+def find_duplicate_news() -> Dict:
+    """重複ニュースを検索"""
+    try:
+        app = init_app()
+        duplicates = app.db_manager.find_duplicate_news()
+        return {'success': True, 'duplicates': duplicates}
+    except Exception as e:
+        app.logger.error(f"重複ニュース検索エラー: {e}")
+        return {'success': False, 'error': str(e)}
+
+@eel.expose
+def get_filter_settings() -> Dict:
+    """フィルタ設定取得"""
+    try:
+        app = init_app()
+        news_config = app.config.get("news_collection", {})
+        
+        return {
+            'success': True,
+            'filter_url_only_news': news_config.get("filter_url_only_news", True),
+            'min_body_length': news_config.get("min_body_length", 50)
+        }
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+@eel.expose
+def save_filter_settings(filter_url_only: bool, min_body_length: int) -> Dict:
+    """フィルタ設定保存"""
+    try:
+        app = init_app()
+        
+        # 設定更新
+        if "news_collection" not in app.config:
+            app.config["news_collection"] = {}
+        
+        app.config["news_collection"]["filter_url_only_news"] = filter_url_only
+        app.config["news_collection"]["min_body_length"] = min_body_length
+        
+        # 設定ファイル保存
+        with open(app.config_path, 'w', encoding='utf-8') as f:
+            json.dump(app.config, f, indent=2, ensure_ascii=False)
+        
+        # データベースマネージャーの設定更新
+        app.db_manager.filter_url_only = filter_url_only
+        app.db_manager.min_body_length = min_body_length
+        
+        return {'success': True, 'message': 'フィルタ設定を保存しました'}
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+@eel.expose
+def update_news_rating(news_id: str, rating: int) -> Dict:
+    """ニュースレーティング更新"""
+    try:
+        app = init_app()
+        
+        # レーティング値の検証
+        if not isinstance(rating, int) or rating < 1 or rating > 3:
+            return {'success': False, 'error': 'レーティングは1-3の整数で指定してください'}
+        
+        success = app.db_manager.update_news_rating(news_id, rating)
+        
+        if success:
+            return {'success': True, 'message': f'レーティングを{rating}星に設定しました'}
+        else:
+            return {'success': False, 'error': 'レーティング更新に失敗しました'}
+            
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+@eel.expose
+def clear_news_rating(news_id: str) -> Dict:
+    """ニュースレーティングクリア"""
+    try:
+        app = init_app()
+        
+        success = app.db_manager.update_news_rating(news_id, None)
+        
+        if success:
+            return {'success': True, 'message': 'レーティングをクリアしました'}
+        else:
+            return {'success': False, 'error': 'レーティングクリアに失敗しました'}
+            
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+@eel.expose
+def mark_news_as_read(news_id: str) -> Dict:
+    """ニュースを既読にマーク"""
+    try:
+        app = init_app()
+        
+        success = app.db_manager.mark_news_as_read(news_id)
+        
+        if success:
+            return {'success': True, 'message': 'ニュースを既読にマークしました'}
+        else:
+            return {'success': False, 'error': '既読マークに失敗しました'}
+            
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+@eel.expose
+def mark_news_as_unread(news_id: str) -> Dict:
+    """ニュースを未読にマーク"""
+    try:
+        app = init_app()
+        
+        success = app.db_manager.mark_news_as_unread(news_id)
+        
+        if success:
+            return {'success': True, 'message': 'ニュースを未読にマークしました'}
+        else:
+            return {'success': False, 'error': '未読マークに失敗しました'}
+            
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+@eel.expose
+def mark_all_as_read(filter_conditions: Dict = None) -> Dict:
+    """表示中のニュースを一括既読にマーク"""
+    try:
+        app = init_app()
+        
+        affected_count = app.db_manager.mark_all_as_read(filter_conditions)
+        
+        return {
+            'success': True, 
+            'message': f'{affected_count}件のニュースを既読にマークしました',
+            'affected_count': affected_count
+        }
+            
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
 
 def main():
     """メイン実行関数"""

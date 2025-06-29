@@ -25,25 +25,40 @@ class SpecDatabaseManager:
             config: データベース設定
         """
         self.config = config
-        self.db_type = config.get("database_type", "postgresql").lower()
+        
+        # データベース設定の取得（全体設定またはdatabase部分）
+        if "database" in config:
+            # 全体設定が渡された場合
+            db_config = config["database"]
+            news_config = config.get("news_collection", {})
+        else:
+            # database部分のみが渡された場合
+            db_config = config
+            news_config = {}
+        
+        self.db_type = db_config.get("database_type", "postgresql").lower()
         self.logger = logging.getLogger(__name__)
+        
+        # URLフィルタリング設定（news_collection設定から取得）
+        self.filter_url_only = news_config.get("filter_url_only_news", True)
+        self.min_body_length = news_config.get("min_body_length", 50)
         
         # 接続パラメータ設定
         if self.db_type == "postgresql":
             self.connection_params = {
-                'host': config.get('host', 'localhost'),
-                'port': config.get('port', 5432),
-                'database': config.get('database', 'lme_reporting'),
-                'user': config.get('user', 'postgres'),
-                'password': config.get('password', '')
+                'host': db_config.get('host', 'localhost'),
+                'port': db_config.get('port', 5432),
+                'database': db_config.get('database', 'lme_reporting'),
+                'user': db_config.get('user', 'postgres'),
+                'password': db_config.get('password', '')
             }
         elif self.db_type == "sqlserver":
             self.connection_params = {
-                'server': config.get('server', 'localhost'),
-                'database': config.get('database', 'lme_reporting'),
-                'user': config.get('user'),
-                'password': config.get('password'),
-                'driver': config.get('driver', 'ODBC Driver 17 for SQL Server')
+                'server': db_config.get('server', 'localhost'),
+                'database': db_config.get('database', 'lme_reporting'),
+                'user': db_config.get('user'),
+                'password': db_config.get('password'),
+                'driver': db_config.get('driver', 'ODBC Driver 17 for SQL Server')
             }
     
     @contextmanager
@@ -115,38 +130,40 @@ class SpecDatabaseManager:
                         INSERT INTO news_table (
                             news_id, title, body, publish_time, acquire_time, 
                             source, url, sentiment, summary, keywords, 
-                            related_metals, is_manual
+                            related_metals, is_manual, rating
                         ) VALUES (
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                         ) ON CONFLICT (news_id) DO UPDATE SET
                             title = EXCLUDED.title,
                             body = EXCLUDED.body,
                             source = EXCLUDED.source,
                             url = EXCLUDED.url,
-                            related_metals = EXCLUDED.related_metals
+                            related_metals = EXCLUDED.related_metals,
+                            rating = EXCLUDED.rating
                     """
                 elif self.db_type == "sqlserver":
                     sql = """
                         MERGE news_table AS target
-                        USING (VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)) AS source 
+                        USING (VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)) AS source 
                                (news_id, title, body, publish_time, acquire_time, 
                                 source, url, sentiment, summary, keywords, 
-                                related_metals, is_manual)
+                                related_metals, is_manual, rating)
                         ON target.news_id = source.news_id
                         WHEN MATCHED THEN
                             UPDATE SET title = source.title,
                                       body = source.body,
                                       source = source.source,
                                       url = source.url,
-                                      related_metals = source.related_metals
+                                      related_metals = source.related_metals,
+                                      rating = source.rating
                         WHEN NOT MATCHED THEN
                             INSERT (news_id, title, body, publish_time, acquire_time,
                                    source, url, sentiment, summary, keywords,
-                                   related_metals, is_manual)
+                                   related_metals, is_manual, rating)
                             VALUES (source.news_id, source.title, source.body, 
                                    source.publish_time, source.acquire_time, source.source,
                                    source.url, source.sentiment, source.summary, 
-                                   source.keywords, source.related_metals, source.is_manual);
+                                   source.keywords, source.related_metals, source.is_manual, source.rating);
                     """
                 
                 cursor.execute(sql, (
@@ -161,7 +178,8 @@ class SpecDatabaseManager:
                     article.summary,
                     article.keywords,
                     article.related_metals,
-                    article.is_manual
+                    article.is_manual,
+                    article.rating
                 ))
                 
                 return True
@@ -230,30 +248,58 @@ class SpecDatabaseManager:
                 # WHERE句とパラメータ生成
                 where_clause, params = search_filter.to_sql_where_clause(self.db_type)
                 
+                # ORDER BY句生成
+                order_clause = search_filter.to_sql_order_clause(self.db_type)
+                
+                # 本文がURLのみのものを除外する条件を追加（設定で有効な場合）
+                if self.filter_url_only:
+                    url_only_filter = self._get_url_only_filter()
+                    if where_clause == "1=1":
+                        where_clause = url_only_filter
+                    else:
+                        where_clause = f"({where_clause}) AND {url_only_filter}"
+                
                 if self.db_type == "postgresql":
+                    # PostgreSQL: DISTINCT ON を使用して重複を除去、カスタムソート適用
                     sql = f"""
-                        SELECT * FROM news_table 
-                        WHERE {where_clause}
-                        ORDER BY publish_time DESC
+                        SELECT * FROM (
+                            SELECT DISTINCT ON (title, source) * FROM news_table 
+                            WHERE {where_clause}
+                            ORDER BY title, source, publish_time DESC
+                        ) deduplicated
+                        {order_clause}
                         LIMIT %s OFFSET %s
                     """
                     params.extend([search_filter.limit, search_filter.offset])
                 else:
+                    # SQL Server: ROW_NUMBER()を使用して重複除去、カスタムソート適用
                     sql = f"""
-                        SELECT * FROM news_table 
-                        WHERE {where_clause}
-                        ORDER BY publish_time DESC
+                        SELECT * FROM (
+                            SELECT *, ROW_NUMBER() OVER (PARTITION BY title, source ORDER BY publish_time DESC) as rn
+                            FROM news_table 
+                            WHERE {where_clause}
+                        ) ranked
+                        WHERE rn = 1
+                        {order_clause}
                         OFFSET ? ROWS FETCH NEXT ? ROWS ONLY
                     """
                     params.extend([search_filter.offset, search_filter.limit])
                 
+                self.logger.debug(f"実行SQL: {sql}")
+                self.logger.debug(f"SQLパラメータ: {params}")
                 cursor.execute(sql, params)
                 
                 if self.db_type == "postgresql":
-                    return [dict(row) for row in cursor.fetchall()]
+                    results = [dict(row) for row in cursor.fetchall()]
                 else:
                     columns = [column[0] for column in cursor.description]
-                    return [dict(zip(columns, row)) for row in cursor.fetchall()]
+                    results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+                
+                # 追加のクライアントサイドフィルタリング（念のため）
+                if self.filter_url_only:
+                    return self._filter_url_only_news(results)
+                else:
+                    return results
                 
         except Exception as e:
             self.logger.error(f"ニュース検索エラー: {e}")
@@ -453,6 +499,114 @@ class SpecDatabaseManager:
             self.logger.error(f"分析結果更新エラー: {e}")
             return False
     
+    def update_news_rating(self, news_id: str, rating: Optional[int]) -> bool:
+        """ニュースレーティング更新"""
+        try:
+            # レーティング値の検証（Noneの場合はクリア）
+            if rating is not None and (rating < 1 or rating > 3):
+                self.logger.error(f"無効なレーティング値: {rating}")
+                return False
+            
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                if self.db_type == "postgresql":
+                    sql = "UPDATE news_table SET rating = %s WHERE news_id = %s"
+                else:
+                    sql = "UPDATE news_table SET rating = ? WHERE news_id = ?"
+                
+                cursor.execute(sql, (rating, news_id))
+                
+                return cursor.rowcount > 0
+                
+        except Exception as e:
+            self.logger.error(f"レーティング更新エラー: {e}")
+            return False
+    
+    def mark_news_as_read(self, news_id: str) -> bool:
+        """ニュースを既読にマーク"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                if self.db_type == "postgresql":
+                    sql = "UPDATE news_table SET is_read = TRUE, read_at = CURRENT_TIMESTAMP WHERE news_id = %s"
+                else:
+                    sql = "UPDATE news_table SET is_read = 1, read_at = GETDATE() WHERE news_id = ?"
+                
+                cursor.execute(sql, (news_id,))
+                
+                if cursor.rowcount > 0:
+                    self.logger.debug(f"ニュースを既読にマーク: {news_id}")
+                    return True
+                else:
+                    self.logger.warning(f"既読マーク失敗（ニュース未発見）: {news_id}")
+                    return False
+                
+        except Exception as e:
+            self.logger.error(f"既読マークエラー: {e}")
+            return False
+    
+    def mark_news_as_unread(self, news_id: str) -> bool:
+        """ニュースを未読にマーク"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                if self.db_type == "postgresql":
+                    sql = "UPDATE news_table SET is_read = FALSE, read_at = NULL WHERE news_id = %s"
+                else:
+                    sql = "UPDATE news_table SET is_read = 0, read_at = NULL WHERE news_id = ?"
+                
+                cursor.execute(sql, (news_id,))
+                
+                if cursor.rowcount > 0:
+                    self.logger.debug(f"ニュースを未読にマーク: {news_id}")
+                    return True
+                else:
+                    self.logger.warning(f"未読マーク失敗（ニュース未発見）: {news_id}")
+                    return False
+                
+        except Exception as e:
+            self.logger.error(f"未読マークエラー: {e}")
+            return False
+    
+    def mark_all_as_read(self, filter_conditions: Optional[Dict] = None) -> int:
+        """全ニュースを既読にマーク（条件付き可能）"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                base_sql = "UPDATE news_table SET is_read = {}, read_at = {}"
+                if self.db_type == "postgresql":
+                    sql = base_sql.format("TRUE", "CURRENT_TIMESTAMP")
+                    where_clause = "WHERE is_read = FALSE"
+                else:
+                    sql = base_sql.format("1", "GETDATE()")
+                    where_clause = "WHERE is_read = 0"
+                
+                # 条件があれば追加
+                params = []
+                if filter_conditions:
+                    if filter_conditions.get('source'):
+                        if self.db_type == "postgresql":
+                            where_clause += " AND source ILIKE %s"
+                            params.append(f"%{filter_conditions['source']}%")
+                        else:
+                            where_clause += " AND source LIKE ?"
+                            params.append(f"%{filter_conditions['source']}%")
+                
+                sql += " " + where_clause
+                cursor.execute(sql, params)
+                
+                affected_rows = cursor.rowcount
+                self.logger.info(f"一括既読マーク完了: {affected_rows} 件")
+                return affected_rows
+                
+        except Exception as e:
+            self.logger.error(f"一括既読マークエラー: {e}")
+            return 0
+    
     def get_system_stats_summary(self, days: int = 30) -> Dict:
         """システム統計サマリー取得"""
         try:
@@ -514,3 +668,212 @@ class SpecDatabaseManager:
         except Exception as e:
             self.logger.error(f"データベース接続エラー: {e}")
             return False
+
+    def find_duplicate_news(self) -> List[Dict]:
+        """
+        タイトルとソースが同じ重複ニュースを検出
+        
+        Returns:
+            List[Dict]: 重複ニュースのリスト
+        """
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                if self.db_type == "postgresql":
+                    sql = """
+                        SELECT title, source, COUNT(*) as duplicate_count,
+                               ARRAY_AGG(news_id ORDER BY publish_time DESC) as news_ids
+                        FROM news_table 
+                        GROUP BY title, source 
+                        HAVING COUNT(*) > 1
+                        ORDER BY duplicate_count DESC
+                    """
+                else:
+                    sql = """
+                        SELECT title, source, COUNT(*) as duplicate_count,
+                               STRING_AGG(news_id, ',') as news_ids
+                        FROM news_table 
+                        GROUP BY title, source 
+                        HAVING COUNT(*) > 1
+                        ORDER BY duplicate_count DESC
+                    """
+                
+                cursor.execute(sql)
+                
+                if self.db_type == "postgresql":
+                    return [dict(row) for row in cursor.fetchall()]
+                else:
+                    columns = [column[0] for column in cursor.description]
+                    results = []
+                    for row in cursor.fetchall():
+                        row_dict = dict(zip(columns, row))
+                        # SQL Serverの場合、カンマ区切りを配列に変換
+                        if 'news_ids' in row_dict and row_dict['news_ids']:
+                            row_dict['news_ids'] = row_dict['news_ids'].split(',')
+                        results.append(row_dict)
+                    return results
+                    
+        except Exception as e:
+            self.logger.error(f"重複ニュース検出エラー: {e}")
+            return []
+
+    def remove_duplicate_news(self, keep_latest: bool = True) -> int:
+        """
+        重複ニュースを削除（最新または最古を保持）
+        
+        Args:
+            keep_latest: True=最新を保持、False=最古を保持
+            
+        Returns:
+            int: 削除された件数
+        """
+        try:
+            duplicates = self.find_duplicate_news()
+            deleted_count = 0
+            
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                for duplicate in duplicates:
+                    title = duplicate['title']
+                    source = duplicate['source']
+                    news_ids = duplicate['news_ids']
+                    
+                    if len(news_ids) <= 1:
+                        continue
+                    
+                    # 保持するニュースID（最新または最古）
+                    if self.db_type == "postgresql":
+                        if keep_latest:
+                            keep_sql = """
+                                SELECT news_id FROM news_table 
+                                WHERE title = %s AND source = %s 
+                                ORDER BY publish_time DESC LIMIT 1
+                            """
+                        else:
+                            keep_sql = """
+                                SELECT news_id FROM news_table 
+                                WHERE title = %s AND source = %s 
+                                ORDER BY publish_time ASC LIMIT 1
+                            """
+                        cursor.execute(keep_sql, (title, source))
+                        keep_id = cursor.fetchone()[0]
+                        
+                        # 他を削除
+                        delete_sql = """
+                            DELETE FROM news_table 
+                            WHERE title = %s AND source = %s AND news_id != %s
+                        """
+                        cursor.execute(delete_sql, (title, source, keep_id))
+                        
+                    else:
+                        if keep_latest:
+                            keep_sql = """
+                                SELECT TOP 1 news_id FROM news_table 
+                                WHERE title = ? AND source = ? 
+                                ORDER BY publish_time DESC
+                            """
+                        else:
+                            keep_sql = """
+                                SELECT TOP 1 news_id FROM news_table 
+                                WHERE title = ? AND source = ? 
+                                ORDER BY publish_time ASC
+                            """
+                        cursor.execute(keep_sql, (title, source))
+                        keep_id = cursor.fetchone()[0]
+                        
+                        # 他を削除
+                        delete_sql = """
+                            DELETE FROM news_table 
+                            WHERE title = ? AND source = ? AND news_id != ?
+                        """
+                        cursor.execute(delete_sql, (title, source, keep_id))
+                    
+                    deleted_count += cursor.rowcount - 1 if cursor.rowcount > 0 else 0
+                
+                conn.commit()
+                self.logger.info(f"重複ニュース削除完了: {deleted_count}件")
+                return deleted_count
+                
+        except Exception as e:
+            self.logger.error(f"重複ニュース削除エラー: {e}")
+            return 0
+
+    def get_duplicate_stats(self) -> Dict:
+        """
+        重複ニュースの統計情報を取得
+        
+        Returns:
+            Dict: 重複統計情報
+        """
+        try:
+            duplicates = self.find_duplicate_news()
+            total_duplicates = len(duplicates)
+            total_duplicate_items = sum(d['duplicate_count'] for d in duplicates)
+            redundant_items = total_duplicate_items - total_duplicates  # 削除可能な件数
+            
+            return {
+                'duplicate_groups': total_duplicates,
+                'total_duplicate_items': total_duplicate_items,
+                'redundant_items': redundant_items,
+                'space_savings_percent': round((redundant_items / total_duplicate_items * 100), 2) if total_duplicate_items > 0 else 0
+            }
+            
+        except Exception as e:
+            self.logger.error(f"重複統計取得エラー: {e}")
+            return {}
+
+    def _get_url_only_filter(self) -> str:
+        """本文がURLのみの記事を除外するフィルター条件を生成"""
+        if self.db_type == "postgresql":
+            return f"""(
+                LENGTH(body) > {self.min_body_length} AND 
+                NOT (body ~ '^\\s*https?://[^\\s]+\\s*$')
+            )"""
+        else:  # SQL Server
+            return f"""(
+                LEN(body) > {self.min_body_length} AND 
+                body NOT LIKE 'http://%' AND 
+                body NOT LIKE 'https://%'
+            )"""
+    
+    def _filter_url_only_news(self, news_list: List[Dict]) -> List[Dict]:
+        """クライアントサイドでURL のみの本文を除外"""
+        filtered_news = []
+        
+        for news in news_list:
+            body = news.get('body', '').strip()
+            
+            # 本文が空または短すぎる場合は除外
+            if not body or len(body) <= self.min_body_length:
+                continue
+            
+            # 本文がURLのみかチェック
+            if self._is_url_only_body(body):
+                continue
+            
+            filtered_news.append(news)
+        
+        return filtered_news
+    
+    def _is_url_only_body(self, body: str) -> bool:
+        """本文がURLのみかどうかを判定"""
+        import re
+        
+        body = body.strip()
+        
+        # 単一のURLパターンをチェック
+        url_pattern = r'^https?://[^\s]+$'
+        if re.match(url_pattern, body):
+            return True
+        
+        # 複数のURLのみの場合もチェック
+        urls = re.findall(r'https?://[^\s]+', body)
+        non_url_text = re.sub(r'https?://[^\s]+', '', body).strip()
+        
+        # URLが存在し、URL以外のテキストが非常に少ない場合
+        if urls and len(non_url_text) < 20:
+            return True
+        
+        return False

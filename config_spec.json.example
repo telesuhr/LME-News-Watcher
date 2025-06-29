@@ -1,12 +1,12 @@
 {
-  "eikon_api_key": "1475940198b04fdab9265b7892546cc2ead9eda6",
+  "eikon_api_key": "YOUR_REFINITIV_API_KEY_HERE",
   "database": {
     "database_type": "postgresql",
     "host": "localhost",
     "port": 5432,
     "database": "lme_reporting",
-    "user": "Yusuke",
-    "password": ""
+    "user": "your_username",
+    "password": "your_password"
   },
   "news_collection": {
     "polling_interval_minutes": 5,
@@ -153,69 +153,30 @@
     "log_directory": "logs",
     "max_log_size_mb": 10,
     "backup_count": 5,
-    "enable_debug": false
-  },
-  "performance": {
-    "max_retries": 3,
-    "retry_delay_seconds": 5,
-    "timeout_seconds": 30,
-    "batch_size": 100,
-    "connection_pool_size": 5
-  },
-  "alerts": {
-    "enable_error_alerts": true,
-    "critical_error_threshold": 5,
-    "collection_failure_threshold": 0.7,
-    "low_collection_count_threshold": 5
-  },
-  "backup": {
-    "enable_auto_backup": false,
-    "backup_interval_days": 7,
-    "backup_retention_days": 30,
-    "backup_directory": "backups"
+    "enable_file_logging": true,
+    "enable_console_logging": true
   },
   "gemini_integration": {
+    "api_key": "YOUR_GEMINI_API_KEY_HERE",
     "enable_ai_analysis": true,
-    "api_key": "AIzaSyAxNKqcsNuDiNAJdnUTdk5WdftqJXnWmtQ",
     "model": "gemini-1.5-pro",
-    "fallback_model": "gemini-1.5-flash",
-    "analysis_enabled": true,
-    "sentiment_analysis": true,
-    "summary_generation": true,
-    "keyword_extraction": true,
-    "importance_scoring": true,
-    "batch_processing": true,
-    "max_text_length": 4000,
+    "rate_limit_delay": 4.5,
     "max_requests_per_minute": 15,
     "max_requests_per_day": 1500,
-    "rate_limit_delay": 4.5,
-    "retry_attempts": 3,
+    "max_daily_cost_usd": 10.0,
+    "batch_size": 3,
+    "max_retries": 3,
     "retry_delay": 10,
-    "cost_optimization": {
-      "prefer_flash_model": false,
-      "skip_duplicate_analysis": true,
-      "analyze_only_important_news": false,
-      "importance_threshold": 5,
-      "batch_size": 3,
-      "max_daily_cost_usd": 10.0
-    },
+    "skip_duplicate_analysis": true,
+    "max_text_length": 4000,
     "manual_analysis": {
       "use_fast_model": true,
-      "model": "gemini-1.5-flash",
-      "timeout_seconds": 15
+      "model": "gemini-1.5-flash"
     },
-    "analysis_prompts": {
-      "summary": "以下の金融ニュースを要約し、特に**LME非鉄金属市場または関連するコモディティ市場への潜在的な影響**に焦点を当ててください。要約は**最大3文**とし、最後に**ポジティブ、ネガティブ、または中立**のセンチメントを評価してください：",
-      "sentiment": "以下のニュースの市場センチメントを「ポジティブ」「ネガティブ」「ニュートラル」で評価し、LME金属市場への影響理由を具体的に述べてください：",
-      "keywords": "このニュースから重要なキーワードを8個以内で抽出してください。金属名、価格用語、市場用語、企業名、地域名を含めてカンマ区切りで：",
-      "importance": "このニュースのLME金属市場への重要度を1-10で評価し、評価理由を具体的に述べてください。価格への影響、市場規模、時間的影響を考慮して："
+    "cost_tracking": {
+      "track_usage": true,
+      "log_costs": true,
+      "alert_threshold_usd": 8.0
     }
-  },
-  "migration": {
-    "target_database": "sqlserver",
-    "migration_planned": true,
-    "preserve_ids": true,
-    "backup_before_migration": true,
-    "migration_batch_size": 1000
   }
 }

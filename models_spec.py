@@ -25,6 +25,9 @@ class NewsArticle:
     summary: Optional[str] = None
     keywords: Optional[str] = None
     related_metals: Optional[str] = None
+    rating: Optional[int] = None
+    is_read: bool = False
+    read_at: Optional[datetime] = None
     
     def __post_init__(self):
         """初期化後処理"""
@@ -50,7 +53,10 @@ class NewsArticle:
             'summary': self.summary,
             'keywords': self.keywords,
             'related_metals': self.related_metals,
-            'is_manual': self.is_manual
+            'is_manual': self.is_manual,
+            'rating': self.rating,
+            'is_read': self.is_read,
+            'read_at': self.read_at
         }
 
 @dataclass
@@ -91,7 +97,10 @@ SPEC_DATABASE_SCHEMA = {
             summary TEXT,
             keywords TEXT,
             related_metals TEXT,
-            is_manual BOOLEAN DEFAULT FALSE
+            is_manual BOOLEAN DEFAULT FALSE,
+            rating INTEGER DEFAULT NULL CHECK (rating >= 1 AND rating <= 3),
+            is_read BOOLEAN DEFAULT FALSE,
+            read_at TIMESTAMP DEFAULT NULL
         );
     """,
     
@@ -135,7 +144,8 @@ SQLSERVER_SPEC_SCHEMA = {
             summary NTEXT,
             keywords NTEXT,
             related_metals NTEXT,
-            is_manual BIT DEFAULT 0
+            is_manual BIT DEFAULT 0,
+            rating INTEGER DEFAULT NULL
         );
     """,
     
@@ -239,8 +249,14 @@ class NewsSearchFilter:
         self.source: Optional[str] = None
         self.related_metals: Optional[List[str]] = None
         self.is_manual: Optional[bool] = None
+        self.rating: Optional[int] = None
+        self.min_importance_score: Optional[int] = None  # 重要度スコア下限フィルター
+        self.is_read: Optional[bool] = None  # 既読フィルター
         self.limit: int = 100
         self.offset: int = 0
+        # ソート機能
+        self.sort_by: str = "smart"  # smart, time_desc, time_asc, rating_desc, rating_asc, relevance
+        self.sort_direction: str = "desc"
     
     def to_sql_where_clause(self, db_type: str = "postgresql") -> tuple[str, list]:
         """
@@ -304,5 +320,92 @@ class NewsSearchFilter:
                 conditions.append("is_manual = ?")
             params.append(self.is_manual)
         
+        if self.rating is not None:
+            if db_type == "postgresql":
+                conditions.append("rating = %s")
+            else:
+                conditions.append("rating = ?")
+            params.append(self.rating)
+        
+        if self.min_importance_score is not None:
+            if db_type == "postgresql":
+                conditions.append("importance_score >= %s")
+            else:
+                conditions.append("importance_score >= ?")
+            params.append(self.min_importance_score)
+        
+        if self.is_read is not None:
+            if db_type == "postgresql":
+                conditions.append("is_read = %s")
+            else:
+                conditions.append("is_read = ?")
+            params.append(self.is_read)
+        
         where_clause = " AND ".join(conditions) if conditions else "1=1"
         return where_clause, params
+    
+    def to_sql_order_clause(self, db_type: str = "postgresql") -> str:
+        """
+        SQLのORDER BY句を生成（時系列とレーティング最適化）
+        
+        Args:
+            db_type: データベースタイプ
+            
+        Returns:
+            order_clause: ORDER BY句
+        """
+        if self.sort_by == "smart":
+            # スマートソート: レーティング優先、次に時系列
+            return """ORDER BY 
+                CASE 
+                    WHEN rating IS NOT NULL THEN rating 
+                    ELSE 0 
+                END DESC,
+                publish_time DESC,
+                acquire_time DESC"""
+        
+        elif self.sort_by == "rating_priority":
+            # レーティング優先: 高レーティング → 未評価 → 低レーティング、同じレーティング内は時系列
+            return """ORDER BY 
+                CASE 
+                    WHEN rating = 3 THEN 1
+                    WHEN rating = 2 THEN 2  
+                    WHEN rating IS NULL THEN 3
+                    WHEN rating = 1 THEN 4
+                    ELSE 5
+                END,
+                publish_time DESC"""
+        
+        elif self.sort_by == "time_desc":
+            return "ORDER BY publish_time DESC, acquire_time DESC"
+        
+        elif self.sort_by == "time_asc":
+            return "ORDER BY publish_time ASC, acquire_time ASC"
+        
+        elif self.sort_by == "rating_desc":
+            return "ORDER BY rating DESC NULLS LAST, publish_time DESC"
+        
+        elif self.sort_by == "rating_asc":
+            return "ORDER BY rating ASC NULLS LAST, publish_time DESC"
+        
+        elif self.sort_by == "relevance":
+            # 関連性ソート: キーワードマッチ度 + レーティング + 時系列
+            if self.keyword:
+                if db_type == "postgresql":
+                    return f"""ORDER BY 
+                        (CASE WHEN title ILIKE '%{self.keyword}%' THEN 2 ELSE 0 END +
+                         CASE WHEN body ILIKE '%{self.keyword}%' THEN 1 ELSE 0 END +
+                         CASE WHEN rating IS NOT NULL THEN rating * 0.5 ELSE 0 END) DESC,
+                        publish_time DESC"""
+                else:  # SQL Server
+                    return f"""ORDER BY 
+                        (CASE WHEN title LIKE '%{self.keyword}%' THEN 2 ELSE 0 END +
+                         CASE WHEN body LIKE '%{self.keyword}%' THEN 1 ELSE 0 END +
+                         CASE WHEN rating IS NOT NULL THEN rating * 0.5 ELSE 0 END) DESC,
+                        publish_time DESC"""
+            else:
+                return self.to_sql_order_clause(db_type).replace("relevance", "smart")
+        
+        else:
+            # デフォルトはスマートソート
+            return self.to_sql_order_clause(db_type).replace(self.sort_by, "smart")

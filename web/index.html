@@ -27,6 +27,10 @@
                         <span class="status-dot"></span>
                         <span id="statusText">待機中</span>
                     </div>
+                    <div class="notification-indicator" id="notificationIndicator" style="display: none;">
+                        <i class="fas fa-exclamation-triangle notification-icon"></i>
+                        <span class="notification-count" id="notificationCount">0</span>
+                    </div>
                 </div>
             </div>
         </header>
@@ -63,6 +67,26 @@
                                 <option value="false">Refinitiv</option>
                                 <option value="true">手動登録</option>
                             </select>
+                            <select id="ratingFilter" class="filter-select">
+                                <option value="">全レーティング</option>
+                                <option value="3">★★★ (高評価)</option>
+                                <option value="2">★★☆ (普通)</option>
+                                <option value="1">★☆☆ (低評価)</option>
+                            </select>
+                            <select id="sortFilter" class="filter-select">
+                                <option value="smart">スマートソート</option>
+                                <option value="rating_priority">レーティング優先</option>
+                                <option value="time_desc">新しい順</option>
+                                <option value="time_asc">古い順</option>
+                                <option value="rating_desc">高評価順</option>
+                                <option value="rating_asc">低評価順</option>
+                                <option value="relevance">関連性順</option>
+                            </select>
+                            <select id="readFilter" class="filter-select">
+                                <option value="">全て</option>
+                                <option value="false">未読のみ</option>
+                                <option value="true">既読のみ</option>
+                            </select>
                         </div>
                     </div>
                 </div>
@@ -86,6 +110,16 @@
                         <input type="date" id="startDate" class="date-input">
                         <span>〜</span>
                         <input type="date" id="endDate" class="date-input">
+                        <input type="text" id="archiveKeyword" class="search-input" placeholder="キーワード検索">
+                        <select id="archiveSortFilter" class="filter-select">
+                            <option value="smart">スマートソート</option>
+                            <option value="rating_priority">レーティング優先</option>
+                            <option value="time_desc">新しい順</option>
+                            <option value="time_asc">古い順</option>
+                            <option value="rating_desc">高評価順</option>
+                            <option value="rating_asc">低評価順</option>
+                            <option value="relevance">関連性順</option>
+                        </select>
                         <button id="dateSearchBtn" class="btn btn-primary">検索</button>
                     </div>
                 </div>
@@ -206,32 +240,121 @@
                 </button>
             </div>
             <div class="modal-body">
-                <div class="settings-section">
-                    <h4>自動更新</h4>
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="autoRefreshEnabled">
-                        自動更新を有効にする
-                    </label>
-                    <div class="form-group">
-                        <label>更新間隔（秒）</label>
-                        <input type="number" id="autoRefreshInterval" min="30" max="3600" value="300" class="form-input">
+                <div class="settings-tabs">
+                    <button class="settings-tab active" data-settings-tab="system">システム状態</button>
+                    <button class="settings-tab" data-settings-tab="keywords">検索キーワード</button>
+                    <button class="settings-tab" data-settings-tab="display">表示設定</button>
+                </div>
+
+                <!-- システム状態タブ -->
+                <div id="system-settings" class="settings-content active">
+                    <h4>アプリケーション状態</h4>
+                    <div class="system-status" id="systemStatus">
+                        <div class="status-item">
+                            <label>動作モード:</label>
+                            <span id="currentMode" class="mode-badge">確認中...</span>
+                        </div>
+                        <div class="status-item">
+                            <label>Refinitiv状態:</label>
+                            <span id="refinitivStatus" class="status-badge">確認中...</span>
+                        </div>
+                        <div class="status-item">
+                            <label>データベース:</label>
+                            <span id="databaseStatus" class="status-badge">確認中...</span>
+                        </div>
+                        <div class="status-item">
+                            <label>自動収集:</label>
+                            <span id="pollingStatus" class="status-badge">確認中...</span>
+                        </div>
+                    </div>
+                    
+                    <div class="status-actions">
+                        <button id="checkRefinitivBtn" class="btn btn-primary">
+                            <i class="fas fa-sync-alt"></i> Refinitiv状態チェック
+                        </button>
+                    </div>
+                    
+                    <div class="mode-description" id="modeDescription">
+                        <h4>利用可能機能</h4>
+                        <ul id="availableFeatures">
+                            <!-- 動的生成 -->
+                        </ul>
                     </div>
                 </div>
-                
-                <div class="settings-section">
-                    <h4>表示設定</h4>
-                    <div class="form-group">
-                        <label>1ページあたりの表示件数</label>
-                        <select id="newsPerPage" class="form-select">
-                            <option value="25">25件</option>
-                            <option value="50" selected>50件</option>
-                            <option value="100">100件</option>
-                        </select>
+
+                <!-- 検索キーワードタブ -->
+                <div id="keywords-settings" class="settings-content">
+                    <h4>検索キーワード設定</h4>
+                    
+                    <div class="keywords-section">
+                        <h5>LME金属キーワード</h5>
+                        <textarea id="lmeKeywords" class="keywords-textarea" rows="4" placeholder="LME, london metal exchange, lme copper, ..." style="width: 100%; margin-bottom: 10px;"></textarea>
+                    </div>
+                    
+                    <div class="keywords-section">
+                        <h5>市場関連キーワード</h5>
+                        <textarea id="marketKeywords" class="keywords-textarea" rows="4" placeholder="copper, aluminium, zinc, lead, ..." style="width: 100%; margin-bottom: 10px;"></textarea>
+                    </div>
+                    
+                    <div class="keywords-section">
+                        <h5>カテゴリ別検索クエリ</h5>
+                        <div class="category-keywords" id="categoryKeywords">
+                            <!-- 動的生成 -->
+                        </div>
+                    </div>
+                    
+                    <div class="keywords-actions">
+                        <button id="saveKeywordsBtn" class="btn btn-success">
+                            <i class="fas fa-save"></i> 保存
+                        </button>
+                        <button id="resetKeywordsBtn" class="btn btn-secondary">
+                            <i class="fas fa-undo"></i> リセット
+                        </button>
                     </div>
                 </div>
-                
-                <div class="settings-actions">
-                    <button id="saveSettingsBtn" class="btn btn-primary">保存</button>
+
+                <!-- 表示設定タブ -->
+                <div id="display-settings" class="settings-content">
+                    <div class="settings-section">
+                        <h4>自動更新</h4>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="autoRefreshEnabled">
+                            自動更新を有効にする
+                        </label>
+                        <div class="form-group">
+                            <label>更新間隔（秒）</label>
+                            <input type="number" id="autoRefreshInterval" min="30" max="3600" value="300" class="form-input">
+                        </div>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <h4>表示設定</h4>
+                        <div class="form-group">
+                            <label>1ページあたりの表示件数</label>
+                            <select id="newsPerPage" class="form-select">
+                                <option value="25">25件</option>
+                                <option value="50" selected>50件</option>
+                                <option value="100">100件</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <h4>フィルタ設定</h4>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="filterUrlOnlyNews" checked>
+                            本文がURLのみのニュースを非表示
+                        </label>
+                        <div class="form-group">
+                            <label>最小本文文字数</label>
+                            <input type="number" id="minBodyLength" min="10" max="500" value="50" class="form-input">
+                            <small>指定した文字数以下の本文を持つニュースを非表示にします</small>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-actions">
+                        <button id="saveSettingsBtn" class="btn btn-primary">保存</button>
+                    </div>
                 </div>
             </div>
         </div>

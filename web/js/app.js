@@ -7,6 +7,8 @@ class NewsWatcher {
         this.currentTab = 'latest';
         this.autoRefreshInterval = null;
         this.isAutoRefreshEnabled = false;
+        this.highImportanceNotifications = [];
+        this.notificationCount = 0;
         
         this.init();
     }
@@ -18,6 +20,7 @@ class NewsWatcher {
         this.loadFilters();
         this.loadStats();
         this.setupAutoRefresh();
+        this.setupHighImportanceNotifications();
     }
     
     setupEventListeners() {
@@ -33,6 +36,10 @@ class NewsWatcher {
         document.getElementById('sourceFilter').addEventListener('change', () => this.performSearch());
         document.getElementById('metalFilter').addEventListener('change', () => this.performSearch());
         document.getElementById('typeFilter').addEventListener('change', () => this.performSearch());
+        document.getElementById('ratingFilter').addEventListener('change', () => this.performSearch());
+        document.getElementById('sortFilter').addEventListener('change', () => this.performSearch());
+        document.getElementById('readFilter').addEventListener('change', () => this.performSearch());
+        
         
         // 過去ニュース
         document.getElementById('dateSearchBtn').addEventListener('click', () => this.searchArchive());
@@ -45,6 +52,20 @@ class NewsWatcher {
         document.getElementById('settingsBtn').addEventListener('click', () => this.openSettings());
         document.getElementById('settingsModalClose').addEventListener('click', () => this.closeModal('settingsModal'));
         document.getElementById('saveSettingsBtn').addEventListener('click', () => this.saveSettings());
+        
+        // 設定タブ
+        this.setupSettingsTabs();
+        
+        // システム状態チェック
+        document.getElementById('checkRefinitivBtn').addEventListener('click', () => this.checkRefinitivStatus());
+        
+        // キーワード設定
+        document.getElementById('saveKeywordsBtn').addEventListener('click', () => this.saveKeywords());
+        document.getElementById('resetKeywordsBtn').addEventListener('click', () => this.resetKeywords());
+        
+        // 高評価ニュース通知
+        document.getElementById('notificationIndicator').addEventListener('click', () => this.showHighImportanceNotifications());
+        
         
         // モーダル外クリックで閉じる
         window.addEventListener('click', (e) => {
@@ -133,6 +154,21 @@ class NewsWatcher {
             const sources = await eel.get_sources_list()();
             const metals = await eel.get_metals_list()();
             
+            // Debugging: Log sources list
+            console.log('=== Sources Debug Info ===');
+            console.log('Total sources count:', sources.length);
+            console.log('All sources:', sources);
+            
+            // Check if Gemini is in the sources
+            const hasGemini = sources.some(source => source.toLowerCase().includes('gemini'));
+            console.log('Contains "Gemini":', hasGemini);
+            
+            // Find any sources containing "gemini" (case insensitive)
+            const geminiSources = sources.filter(source => source.toLowerCase().includes('gemini'));
+            console.log('Gemini-related sources:', geminiSources);
+            
+            console.log('=== End Sources Debug ===');
+            
             this.populateFilter('sourceFilter', sources);
             this.populateFilter('metalFilter', metals);
         } catch (error) {
@@ -173,6 +209,9 @@ class NewsWatcher {
                 source: document.getElementById('sourceFilter').value,
                 metal: document.getElementById('metalFilter').value,
                 is_manual: document.getElementById('typeFilter').value,
+                rating: document.getElementById('ratingFilter').value,
+                sort_by: document.getElementById('sortFilter').value,
+                is_read: document.getElementById('readFilter').value,
                 page: this.currentPage,
                 per_page: this.newsPerPage
             };
@@ -202,7 +241,8 @@ class NewsWatcher {
             const searchParams = {
                 start_date: startDate,
                 end_date: endDate,
-                keyword: document.getElementById('searchKeyword').value,
+                keyword: document.getElementById('archiveKeyword').value,
+                sort_by: document.getElementById('archiveSortFilter').value,
                 page: 1,
                 per_page: this.newsPerPage
             };
@@ -232,9 +272,12 @@ class NewsWatcher {
             return;
         }
         
+        // ソート情報ヘッダーを追加
+        const sortInfo = this.getCurrentSortInfo(containerId);
+        
         // ニュースアイテムのHTMLを生成
         const newsHTML = news.map(item => this.createNewsItemHTML(item)).join('');
-        container.innerHTML = newsHTML;
+        container.innerHTML = sortInfo + newsHTML;
         
         // ニュースアイテムのクリックイベント設定
         requestAnimationFrame(() => {
@@ -245,6 +288,36 @@ class NewsWatcher {
                 });
             });
         });
+    }
+    
+    getCurrentSortInfo(containerId) {
+        // ソートフィルターから現在の設定を取得
+        let sortFilter, sortName;
+        
+        if (containerId === 'archiveList') {
+            const archiveSortFilter = document.getElementById('archiveSortFilter');
+            sortFilter = archiveSortFilter ? archiveSortFilter.value : 'smart';
+        } else {
+            const mainSortFilter = document.getElementById('sortFilter');
+            sortFilter = mainSortFilter ? mainSortFilter.value : 'smart';
+        }
+        
+        // ソート名の日本語変換
+        const sortNames = {
+            'smart': 'スマートソート (レーティング優先)',
+            'rating_priority': 'レーティング優先ソート',
+            'time_desc': '新しい順',
+            'time_asc': '古い順',
+            'rating_desc': '高評価順',
+            'rating_asc': '低評価順',
+            'relevance': '関連性順'
+        };
+        
+        sortName = sortNames[sortFilter] || 'スマートソート';
+        
+        return `<div class="sort-info-header">
+            <i class="fas fa-sort"></i> ${sortName}で表示中
+        </div>`;
     }
     
     createNewsItemHTML(news) {
@@ -258,6 +331,7 @@ class NewsWatcher {
         const hasAIAnalysis = news.summary || news.sentiment || news.keywords;
         const sentiment = news.sentiment || '';
         const keywords = news.keywords || '';
+        const isRead = news.is_read || false;
         
         // 重要度スコアの抽出（keywordsフィールドから）
         let importanceScore = null;
@@ -269,12 +343,15 @@ class NewsWatcher {
         }
         
         return `
-            <div class="news-item" data-news-id="${news.news_id}">
+            <div class="news-item ${isRead ? 'news-read' : 'news-unread'}" data-news-id="${news.news_id}">
                 <div class="news-header">
                     <div class="news-title">${this.escapeHtml(news.title)}</div>
                     <div class="news-badges">
                         <span class="badge ${isManual ? 'badge-manual' : 'badge-refinitiv'}">
                             ${isManual ? '手動登録' : 'Refinitiv'}
+                        </span>
+                        <span class="badge ${isRead ? 'badge-read' : 'badge-unread'}">
+                            <i class="fas ${isRead ? 'fa-check' : 'fa-circle'}"></i> ${isRead ? '既読' : '未読'}
                         </span>
                         ${hasAIAnalysis ? '<span class="badge badge-ai">AI分析済</span>' : ''}
                         ${importanceScore !== null ? `<span class="badge badge-importance importance-${this.getImportanceClass(importanceScore)}">${importanceScore}/10</span>` : ''}
@@ -288,6 +365,7 @@ class NewsWatcher {
                     </div>
                     <div class="news-meta-right">
                         <span class="news-date">${publishTime}</span>
+                        ${this.createInlineRatingControl(news.news_id, news.rating)}
                     </div>
                 </div>
                 
@@ -317,6 +395,12 @@ class NewsWatcher {
             const publishTime = new Date(news.publish_time).toLocaleString('ja-JP');
             const acquireTime = new Date(news.acquire_time).toLocaleString('ja-JP');
             const isManual = news.is_manual;
+            const isRead = news.is_read || false;
+            
+            // 詳細表示で自動的に既読にマーク（未読の場合のみ）
+            if (!isRead) {
+                await this.markAsRead(newsId);
+            }
             
             modalBody.innerHTML = `
                 <div class="news-detail">
@@ -343,6 +427,10 @@ class NewsWatcher {
                                 <strong>関連金属:</strong> ${this.escapeHtml(news.related_metals)}
                             </div>
                         ` : ''}
+                        
+                        <div class="meta-row">
+                            ${this.createRatingControl(news.news_id, news.rating)}
+                        </div>
                     </div>
                     
                     <div class="ai-analysis-section">
@@ -570,6 +658,10 @@ class NewsWatcher {
     
     openSettings() {
         document.getElementById('settingsModal').classList.add('show');
+        // システム状態を更新
+        this.updateSystemStatus();
+        // キーワード設定を読み込み
+        this.loadKeywordSettings();
     }
     
     saveSettings() {
@@ -594,6 +686,213 @@ class NewsWatcher {
         
         this.closeModal('settingsModal');
         this.showSuccess('設定を保存しました');
+    }
+    
+    setupSettingsTabs() {
+        // 設定タブの切り替え
+        const settingsTabs = document.querySelectorAll('.settings-tab');
+        settingsTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const targetTab = tab.getAttribute('data-settings-tab');
+                this.switchSettingsTab(targetTab);
+            });
+        });
+    }
+    
+    switchSettingsTab(tabName) {
+        // タブボタンの状態更新
+        document.querySelectorAll('.settings-tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        document.querySelector(`[data-settings-tab="${tabName}"]`).classList.add('active');
+        
+        // タブコンテンツの表示切替
+        document.querySelectorAll('.settings-content').forEach(content => {
+            content.classList.remove('active');
+        });
+        document.getElementById(`${tabName}-settings`).classList.add('active');
+        
+        // タブ切り替え時の特別な処理
+        if (tabName === 'system') {
+            this.updateSystemStatus();
+        } else if (tabName === 'keywords') {
+            this.loadKeywordSettings();
+        }
+    }
+    
+    async updateSystemStatus() {
+        try {
+            const status = await eel.get_app_status()();
+            
+            // 動作モード
+            const modeElement = document.getElementById('currentMode');
+            modeElement.textContent = status.current_mode ? status.current_mode.toUpperCase() : 'UNKNOWN';
+            modeElement.className = `mode-badge ${status.current_mode}`;
+            
+            // Refinitiv状態
+            const refinitivElement = document.getElementById('refinitivStatus');
+            refinitivElement.textContent = status.refinitiv_status || '不明';
+            refinitivElement.className = `status-badge ${status.refinitiv_available ? 'connected' : 'disconnected'}`;
+            
+            // データベース状態
+            const dbElement = document.getElementById('databaseStatus');
+            dbElement.textContent = status.database_connected ? '接続済み' : '切断';
+            dbElement.className = `status-badge ${status.database_connected ? 'connected' : 'disconnected'}`;
+            
+            // ポーリング状態
+            const pollingElement = document.getElementById('pollingStatus');
+            pollingElement.textContent = status.polling_active ? '動作中' : '停止中';
+            pollingElement.className = `status-badge ${status.polling_active ? 'running' : 'stopped'}`;
+            
+            // 利用可能機能の表示
+            this.updateAvailableFeatures(status.features_available);
+            
+        } catch (error) {
+            console.error('システム状態取得エラー:', error);
+            this.showError('システム状態の取得に失敗しました');
+        }
+    }
+    
+    updateAvailableFeatures(features) {
+        const featuresList = document.getElementById('availableFeatures');
+        featuresList.innerHTML = '';
+        
+        const featureLabels = {
+            'database_access': 'データベースアクセス',
+            'manual_news_entry': '手動ニュース登録',
+            'news_search': 'ニュース検索',
+            'automatic_collection': '自動ニュース収集',
+            'background_polling': 'バックグラウンド更新'
+        };
+        
+        for (const [feature, available] of Object.entries(features)) {
+            const li = document.createElement('li');
+            li.textContent = featureLabels[feature] || feature;
+            if (!available) {
+                li.classList.add('disabled');
+            }
+            featuresList.appendChild(li);
+        }
+    }
+    
+    async checkRefinitivStatus() {
+        const button = document.getElementById('checkRefinitivBtn');
+        const originalContent = button.innerHTML;
+        
+        try {
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> チェック中...';
+            button.disabled = true;
+            
+            const result = await eel.check_refinitiv_status()();
+            
+            if (result.success) {
+                // 状態を更新
+                this.updateSystemStatus();
+                
+                // 結果メッセージ
+                if (result.mode_changed) {
+                    this.showInfo(`モードが${result.old_mode}から${result.new_mode}に変更されました`);
+                } else {
+                    this.showSuccess('Refinitiv状態をチェックしました');
+                }
+            } else {
+                this.showError(`チェックエラー: ${result.error}`);
+            }
+        } catch (error) {
+            console.error('Refinitiv状態チェックエラー:', error);
+            this.showError('Refinitiv状態チェックに失敗しました');
+        } finally {
+            button.innerHTML = originalContent;
+            button.disabled = false;
+        }
+    }
+    
+    async loadKeywordSettings() {
+        try {
+            const result = await eel.get_search_keywords()();
+            
+            if (result.success) {
+                // LMEキーワード
+                document.getElementById('lmeKeywords').value = result.lme_keywords.join(', ');
+                
+                // 市場キーワード
+                document.getElementById('marketKeywords').value = result.market_keywords.join(', ');
+                
+                // カテゴリ別キーワード
+                this.displayCategoryKeywords(result.query_categories);
+            } else {
+                this.showError('キーワード設定の読み込みに失敗しました');
+            }
+        } catch (error) {
+            console.error('キーワード設定読み込みエラー:', error);
+            this.showError('キーワード設定の読み込みに失敗しました');
+        }
+    }
+    
+    displayCategoryKeywords(categories) {
+        const container = document.getElementById('categoryKeywords');
+        container.innerHTML = '';
+        
+        for (const [categoryName, keywords] of Object.entries(categories)) {
+            const categoryDiv = document.createElement('div');
+            categoryDiv.className = 'category-item';
+            
+            const title = document.createElement('h6');
+            title.textContent = categoryName;
+            categoryDiv.appendChild(title);
+            
+            const textarea = document.createElement('textarea');
+            textarea.name = `category_${categoryName}`;
+            textarea.value = keywords.join(', ');
+            categoryDiv.appendChild(textarea);
+            
+            container.appendChild(categoryDiv);
+        }
+    }
+    
+    async saveKeywords() {
+        try {
+            // LMEキーワード
+            const lmeKeywords = document.getElementById('lmeKeywords').value
+                .split(',').map(k => k.trim()).filter(k => k);
+            
+            // 市場キーワード
+            const marketKeywords = document.getElementById('marketKeywords').value
+                .split(',').map(k => k.trim()).filter(k => k);
+            
+            // カテゴリ別キーワード
+            const queryCategories = {};
+            const categoryItems = document.querySelectorAll('.category-item textarea');
+            categoryItems.forEach(textarea => {
+                const categoryName = textarea.name.replace('category_', '');
+                const keywords = textarea.value.split(',').map(k => k.trim()).filter(k => k);
+                queryCategories[categoryName] = keywords;
+            });
+            
+            const keywordsData = {
+                lme_keywords: lmeKeywords,
+                market_keywords: marketKeywords,
+                query_categories: queryCategories
+            };
+            
+            const result = await eel.update_search_keywords(keywordsData)();
+            
+            if (result.success) {
+                this.showSuccess('検索キーワードを保存しました');
+            } else {
+                this.showError('検索キーワードの保存に失敗しました');
+            }
+        } catch (error) {
+            console.error('キーワード保存エラー:', error);
+            this.showError('検索キーワードの保存に失敗しました');
+        }
+    }
+    
+    async resetKeywords() {
+        if (confirm('検索キーワードをデフォルト設定にリセットしますか？')) {
+            this.loadKeywordSettings();
+            this.showInfo('検索キーワード設定をリセットしました');
+        }
     }
     
     closeModal(modalId) {
@@ -689,10 +988,97 @@ class NewsWatcher {
         }, 5000);
     }
     
+    async markAsRead(newsId) {
+        try {
+            const response = await eel.mark_news_as_read(newsId)();
+            if (response.success) {
+                // UIの更新
+                this.updateNewsItemReadStatus(newsId, true);
+                return true;
+            } else {
+                this.showError(response.error);
+                return false;
+            }
+        } catch (error) {
+            this.showError('既読マークに失敗しました: ' + error.message);
+            return false;
+        }
+    }
+    
+    async markAsUnread(newsId) {
+        try {
+            const response = await eel.mark_news_as_unread(newsId)();
+            if (response.success) {
+                // UIの更新
+                this.updateNewsItemReadStatus(newsId, false);
+                return true;
+            } else {
+                this.showError(response.error);
+                return false;
+            }
+        } catch (error) {
+            this.showError('未読マークに失敗しました: ' + error.message);
+            return false;
+        }
+    }
+    
+    
+    updateNewsItemReadStatus(newsId, isRead) {
+        const newsItem = document.querySelector(`[data-news-id="${newsId}"]`);
+        if (newsItem) {
+            // CSSクラス更新
+            newsItem.classList.remove('news-read', 'news-unread');
+            newsItem.classList.add(isRead ? 'news-read' : 'news-unread');
+            
+            // バッジ更新
+            const readBadge = newsItem.querySelector('.badge-read, .badge-unread');
+            if (readBadge) {
+                readBadge.className = `badge ${isRead ? 'badge-read' : 'badge-unread'}`;
+                readBadge.innerHTML = `<i class="fas ${isRead ? 'fa-check' : 'fa-circle'}"></i> ${isRead ? '既読' : '未読'}`;
+            }
+        }
+    }
+    
     getImportanceClass(score) {
         if (score >= 8) return 'high';
         if (score >= 6) return 'medium';
         return 'low';
+    }
+    
+    createRatingDisplay(rating) {
+        if (!rating) return '';
+        
+        const stars = '★'.repeat(rating) + '☆'.repeat(3 - rating);
+        return `<div class="rating-badge">
+            <span class="rating-stars">${stars}</span>
+        </div>`;
+    }
+    
+    createInlineRatingControl(newsId, currentRating = null) {
+        const stars = [];
+        for (let i = 1; i <= 3; i++) {
+            const isActive = currentRating && i <= currentRating;
+            stars.push(`<span class="star-inline ${isActive ? 'active' : ''}" data-rating="${i}" onclick="event.stopPropagation(); newsWatcher.setRatingInline('${newsId}', ${i})">★</span>`);
+        }
+        
+        return `<div class="rating-control-inline" title="クリックして評価">
+            ${stars.join('')}
+            ${currentRating ? `<span class="rating-clear" onclick="event.stopPropagation(); newsWatcher.clearRatingInline('${newsId}')" title="評価をクリア">×</span>` : ''}
+        </div>`;
+    }
+    
+    createRatingControl(newsId, currentRating = null) {
+        const stars = [];
+        for (let i = 1; i <= 3; i++) {
+            const isActive = currentRating && i <= currentRating;
+            stars.push(`<span class="star ${isActive ? 'active' : ''}" data-rating="${i}" onclick="newsWatcher.setRating('${newsId}', ${i})">★</span>`);
+        }
+        
+        return `<div class="rating-control">
+            <label>評価: </label>
+            ${stars.join('')}
+            ${currentRating ? `<button class="btn btn-sm btn-outline-secondary" onclick="newsWatcher.clearRating('${newsId}')" style="margin-left: 0.5rem;">クリア</button>` : ''}
+        </div>`;
     }
     
     async loadGeminiStats() {
@@ -828,13 +1214,19 @@ class NewsWatcher {
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 収集中...';
             
-            this.updateStatus('ニュース収集中...', 'warning');
-            this.showInfo('Refinitiv APIからニュースを収集しています...');
+            this.updateStatus('高速ニュース収集中...', 'warning');
+            this.showInfo('高速モードでRefinitiv APIからニュースを収集しています...');
+            
+            // 開始時刻を記録
+            const startTime = Date.now();
             
             const result = await eel.manual_collect_news()();
             
             if (result.success) {
-                this.showSuccess(`ニュース収集完了: ${result.collected_count}件の新しいニュースを取得しました`);
+                const endTime = Date.now();
+                const duration = Math.round((endTime - startTime) / 1000);
+                
+                this.showSuccess(`高速ニュース収集完了: ${result.collected_count}件の新しいニュースを取得しました（${duration}秒）`);
                 this.updateStatus('収集完了', 'success');
                 
                 // 最新ニュースタブの場合は自動更新
@@ -854,6 +1246,240 @@ class NewsWatcher {
             btn.innerHTML = originalContent;
         }
     }
+    
+    async loadFilterSettings() {
+        try {
+            const result = await eel.get_filter_settings()();
+            if (result.success) {
+                document.getElementById('filterUrlOnlyNews').checked = result.filter_url_only_news;
+                document.getElementById('minBodyLength').value = result.min_body_length;
+            }
+        } catch (error) {
+            console.error('フィルタ設定読み込みエラー:', error);
+        }
+    }
+    
+    async saveDisplaySettings() {
+        try {
+            const filterUrlOnly = document.getElementById('filterUrlOnlyNews').checked;
+            const minBodyLength = parseInt(document.getElementById('minBodyLength').value);
+            
+            const result = await eel.save_filter_settings(filterUrlOnly, minBodyLength)();
+            
+            if (result.success) {
+                this.showNotification(result.message || 'フィルタ設定を保存しました', 'success');
+                // ニュース再読み込み
+                this.loadLatestNews();
+            } else {
+                this.showNotification(result.error || '保存に失敗しました', 'error');
+            }
+        } catch (error) {
+            console.error('フィルタ設定保存エラー:', error);
+            this.showNotification('設定保存中にエラーが発生しました', 'error');
+        }
+    }
+    
+    async setRating(newsId, rating) {
+        try {
+            const result = await eel.update_news_rating(newsId, rating)();
+            
+            if (result.success) {
+                this.showNotification(`レーティングを${rating}星に設定しました`, 'success');
+                
+                // モーダル内のレーティング表示を更新
+                const ratingControl = document.querySelector(`[onclick*="${newsId}"]`).closest('.rating-control');
+                if (ratingControl) {
+                    ratingControl.innerHTML = this.createRatingControl(newsId, rating).match(/<div[^>]*>(.*)<\/div>/)[1];
+                }
+                
+                // ニュース一覧の再読み込みは行わない（パフォーマンス向上）
+            } else {
+                this.showNotification(result.error || 'レーティング設定に失敗しました', 'error');
+            }
+        } catch (error) {
+            console.error('レーティング設定エラー:', error);
+            this.showNotification('レーティング設定中にエラーが発生しました', 'error');
+        }
+    }
+    
+    async clearRating(newsId) {
+        try {
+            const result = await eel.clear_news_rating(newsId)();
+            
+            if (result.success) {
+                this.showNotification('レーティングをクリアしました', 'success');
+                
+                // モーダル内のレーティング表示を更新
+                const ratingControl = document.querySelector(`[onclick*="${newsId}"]`).closest('.rating-control');
+                if (ratingControl) {
+                    ratingControl.innerHTML = this.createRatingControl(newsId, null).match(/<div[^>]*>(.*)<\/div>/)[1];
+                }
+            } else {
+                this.showNotification(result.error || 'レーティングクリアに失敗しました', 'error');
+            }
+        } catch (error) {
+            console.error('レーティングクリアエラー:', error);
+            this.showNotification('レーティングクリア中にエラーが発生しました', 'error');
+        }
+    }
+    
+    async setRatingInline(newsId, rating) {
+        try {
+            const result = await eel.update_news_rating(newsId, rating)();
+            
+            if (result.success) {
+                // 一覧画面のレーティング表示を即座に更新（通知なし）
+                const newsItem = document.querySelector(`[data-news-id="${newsId}"]`);
+                if (newsItem) {
+                    const ratingControlInline = newsItem.querySelector('.rating-control-inline');
+                    if (ratingControlInline) {
+                        ratingControlInline.outerHTML = this.createInlineRatingControl(newsId, rating);
+                    }
+                }
+            } else {
+                // エラー時のみ通知表示
+                this.showNotification(result.error || 'レーティング設定に失敗しました', 'error');
+            }
+        } catch (error) {
+            console.error('レーティング設定エラー:', error);
+            this.showNotification('レーティング設定中にエラーが発生しました', 'error');
+        }
+    }
+    
+    async clearRatingInline(newsId) {
+        try {
+            const result = await eel.clear_news_rating(newsId)();
+            
+            if (result.success) {
+                // 一覧画面のレーティング表示を即座に更新（通知なし）
+                const newsItem = document.querySelector(`[data-news-id="${newsId}"]`);
+                if (newsItem) {
+                    const ratingControlInline = newsItem.querySelector('.rating-control-inline');
+                    if (ratingControlInline) {
+                        ratingControlInline.outerHTML = this.createInlineRatingControl(newsId, null);
+                    }
+                }
+            } else {
+                // エラー時のみ通知表示
+                this.showNotification(result.error || 'レーティングクリアに失敗しました', 'error');
+            }
+        } catch (error) {
+            console.error('レーティングクリアエラー:', error);
+            this.showNotification('レーティングクリア中にエラーが発生しました', 'error');
+        }
+    }
+    
+    // 高評価ニュース通知機能
+    setupHighImportanceNotifications() {
+        // 通知インジケーターを初期化
+        this.updateNotificationIndicator();
+        
+        // Eelでエクスポーズされた関数として登録（Python側から呼び出し可能にする）
+        window.eel.expose(this.receiveHighImportanceNotification.bind(this), 'notify_high_importance_news');
+    }
+    
+    receiveHighImportanceNotification(notificationData) {
+        console.log('高評価ニュース通知受信:', notificationData);
+        
+        // 通知データを配列に追加
+        this.highImportanceNotifications.unshift(notificationData);
+        this.notificationCount++;
+        
+        // 通知インジケーターを更新
+        this.updateNotificationIndicator();
+        
+        // トースト通知を表示
+        this.showHighImportanceToast(notificationData);
+    }
+    
+    updateNotificationIndicator() {
+        const indicator = document.getElementById('notificationIndicator');
+        const countElement = document.getElementById('notificationCount');
+        
+        if (this.notificationCount > 0) {
+            indicator.style.display = 'flex';
+            countElement.textContent = this.notificationCount;
+        } else {
+            indicator.style.display = 'none';
+        }
+    }
+    
+    showHighImportanceToast(notificationData) {
+        // 既存のトーストを削除
+        const existingToast = document.querySelector('.high-importance-toast');
+        if (existingToast) {
+            existingToast.remove();
+        }
+        
+        // トースト要素を作成
+        const toast = document.createElement('div');
+        toast.className = 'high-importance-toast';
+        toast.onclick = () => {
+            this.openNewsDetail(notificationData.news_id);
+            this.removeToast(toast);
+        };
+        
+        const score = notificationData.importance_score || 0;
+        const scoreStars = '★'.repeat(Math.min(Math.floor(score / 2), 5));
+        
+        toast.innerHTML = `
+            <button class="toast-close" onclick="event.stopPropagation(); this.parentElement.remove();">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="toast-header">
+                <i class="fas fa-star toast-importance-icon"></i>
+                <span>高評価ニュース検出</span>
+                <div class="toast-score">スコア: ${score}/10</div>
+            </div>
+            <div class="toast-title">${notificationData.title}</div>
+            <div class="toast-meta">
+                <span>ソース: ${notificationData.source}</span>
+                <span>${scoreStars}</span>
+            </div>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // 7秒後に自動削除
+        setTimeout(() => {
+            this.removeToast(toast);
+        }, 7000);
+    }
+    
+    removeToast(toast) {
+        if (toast && toast.parentElement) {
+            toast.classList.add('toast-fade-out');
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.remove();
+                }
+            }, 300);
+        }
+    }
+    
+    showHighImportanceNotifications() {
+        if (this.highImportanceNotifications.length === 0) {
+            this.showNotification('高評価ニュースの通知はありません', 'info');
+            return;
+        }
+        
+        // 最新の高評価ニュースでフィルタ実行
+        const latestNotification = this.highImportanceNotifications[0];
+        
+        // 高評価（スコア8以上）でフィルタリング
+        document.getElementById('ratingFilter').value = '';
+        document.getElementById('sortFilter').value = 'rating_desc';
+        
+        // 検索実行
+        this.performSearch();
+        
+        // 通知カウントをリセット
+        this.notificationCount = 0;
+        this.updateNotificationIndicator();
+        
+        this.showNotification(`${this.highImportanceNotifications.length}件の高評価ニュースを表示しました`, 'success');
+    }
+    
 }
 
 // グローバル関数
@@ -883,6 +1509,16 @@ let newsWatcher;
 
 document.addEventListener('DOMContentLoaded', () => {
     newsWatcher = new NewsWatcher();
+    
+    // 設定ボタンのイベントリスナー追加
+    document.getElementById('saveSettingsBtn').addEventListener('click', () => {
+        newsWatcher.saveDisplaySettings();
+    });
+    
+    // フィルタ設定読み込み
+    setTimeout(() => {
+        newsWatcher.loadFilterSettings();
+    }, 100);
 });
 
 // 通知スタイルを動的に追加

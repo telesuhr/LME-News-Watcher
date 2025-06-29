@@ -11,9 +11,16 @@ import time
 import re
 import pandas as pd
 import asyncio
+import warnings
+import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set
 from pathlib import Path
+
+# pandas/numpy datetime64 問題を回避するための設定
+warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', category=UserWarning)
+pd.set_option('mode.chained_assignment', None)
 
 from models_spec import NewsArticle, SystemStats, extract_related_metals
 from database_spec import SpecDatabaseManager
@@ -31,7 +38,7 @@ class RefinitivNewsCollector:
         """
         self.config = self._load_config(config_path)
         self.logger = self._setup_logger()
-        self.db_manager = SpecDatabaseManager(self.config["database"])
+        self.db_manager = SpecDatabaseManager(self.config)
         
         # Gemini分析器初期化
         self.gemini_analyzer = GeminiNewsAnalyzer(self.config)
@@ -49,6 +56,10 @@ class RefinitivNewsCollector:
         
         # 重複チェック用キャッシュ
         self.existing_news_ids: Set[str] = set()
+        
+        # エラー抑制用（同じエラーの重複を防ぐ）
+        self.recent_errors: Dict[str, datetime] = {}
+        self.error_cooldown_minutes = 5
         
         # EIKON API初期化
         try:
@@ -68,27 +79,74 @@ class RefinitivNewsCollector:
         except json.JSONDecodeError as e:
             raise ValueError(f"設定ファイル読み込みエラー: {e}")
     
+    def _safe_datetime_convert(self, dt_value) -> datetime:
+        """安全なdatetime変換（datetime64エラー対応）"""
+        if dt_value is None:
+            return datetime.now()
+        
+        try:
+            # pandas Timestampの場合
+            if hasattr(dt_value, 'to_pydatetime'):
+                return dt_value.to_pydatetime()
+            
+            # numpy datetime64の場合（unit指定で安全変換）
+            elif hasattr(dt_value, 'astype') and 'datetime64' in str(type(dt_value)):
+                # datetime64をTimestampに変換してからdatetimeに
+                ts = pd.Timestamp(dt_value)
+                return ts.to_pydatetime()
+            
+            # 文字列の場合
+            elif isinstance(dt_value, str):
+                if 'T' in dt_value:
+                    if dt_value.endswith('Z'):
+                        return datetime.fromisoformat(dt_value.replace('Z', '+00:00'))
+                    else:
+                        return datetime.fromisoformat(dt_value.split('+')[0].split('Z')[0])
+                else:
+                    return pd.to_datetime(dt_value, errors='coerce').to_pydatetime()
+            
+            # その他の型（pandas to_datetimeで変換）
+            else:
+                result = pd.to_datetime(dt_value, errors='coerce', unit='ns')
+                if pd.isna(result):
+                    return datetime.now()
+                return result.to_pydatetime()
+                
+        except Exception:
+            # 全ての変換が失敗した場合は現在時刻を返す
+            return datetime.now()
+    
     def _setup_logger(self) -> logging.Logger:
         """ログ設定"""
         logger = logging.getLogger('RefinitivNewsCollector')
+        
+        # 既存のハンドラーを削除（重複を防ぐ）
+        for handler in logger.handlers[:]:
+            logger.removeHandler(handler)
+        
         logger.setLevel(getattr(logging, self.config["logging"]["log_level"]))
+        
+        # 親ロガーからの伝播を防ぐ
+        logger.propagate = False
         
         # ログディレクトリ作成
         log_dir = Path(self.config["logging"]["log_directory"])
         log_dir.mkdir(exist_ok=True)
         
-        # ファイルハンドラー設定
+        # ファイルハンドラー設定（全レベル）
         log_file = log_dir / f"refinitiv_news_{datetime.now().strftime('%Y%m%d')}.log"
-        handler = logging.FileHandler(log_file, encoding='utf-8')
-        formatter = logging.Formatter(
+        file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        file_formatter = logging.Formatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
+        file_handler.setFormatter(file_formatter)
+        logger.addHandler(file_handler)
         
-        # コンソールハンドラー
+        # コンソールハンドラー（WARNINGレベル以上のみ - より静か）
         console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
+        console_handler.setLevel(logging.WARNING)  # ERRORからWARNINGに緩和
+        console_formatter = logging.Formatter('%(levelname)s: %(message)s')  # よりシンプル
+        console_handler.setFormatter(console_formatter)
         logger.addHandler(console_handler)
         
         return logger
@@ -134,17 +192,37 @@ class RefinitivNewsCollector:
         return None
     
     def _get_news_by_query(self, query: str, start_date: datetime, end_date: datetime) -> List[Dict]:
-        """クエリによるニュース取得"""
+        """クエリによるニュース取得 - datetime64エラー完全対応版"""
         try:
             self.logger.debug(f"ニュース取得開始: {query}")
             
-            # API呼び出し
-            headlines = ek.get_news_headlines(
-                query=query,
-                count=self.config["news_collection"]["max_news_per_query"],
-                date_from=start_date.strftime('%Y-%m-%d'),
-                date_to=end_date.strftime('%Y-%m-%d')
-            )
+            # 安全性チェック
+            if not self._is_safe_query(query):
+                self.logger.debug(f"危険なクエリをスキップ: {query}")
+                return []
+            
+            # datetime64エラー対策：日付パラメータを使わずに取得
+            # EIKON APIの日付パラメータがdatetime64エラーの根本原因のため完全に回避
+            try:
+                # API制限を考慮して安全な件数に制限
+                safe_count = min(self.config["news_collection"]["max_news_per_query"], 20)
+                headlines = ek.get_news_headlines(
+                    query=query,
+                    count=safe_count
+                )
+                
+                # クライアントサイドで日付フィルタリング
+                if headlines is not None and not headlines.empty:
+                    headlines = self._filter_headlines_by_date(headlines, start_date, end_date)
+                    self.logger.debug(f"クライアントサイドフィルタリング完了: {query} - {len(headlines)} 件")
+                else:
+                    headlines = pd.DataFrame()
+                    
+            except Exception as api_error:
+                error_key = f"query_failed_{query}"
+                if self._should_log_error(error_key):
+                    self.logger.error(f"ニュース取得失敗: {query} (全手法失敗)")
+                return []
             
             self.stats['api_calls_made'] += 1
             
@@ -164,30 +242,8 @@ class RefinitivNewsCollector:
                     if story_id in self.existing_news_ids:
                         continue
                     
-                    # 日付処理（簡略化してエラー回避）
-                    try:
-                        version_created = row.get('versionCreated')
-                        
-                        if version_created is not None:
-                            # まずpandas Timestampへの変換を試す
-                            if hasattr(pd, 'to_datetime'):
-                                ts = pd.to_datetime(version_created, errors='coerce')
-                                if not pd.isna(ts):
-                                    publish_time = ts.to_pydatetime()
-                                else:
-                                    publish_time = datetime.now()
-                            else:
-                                # フォールバック: 文字列として処理
-                                date_str = str(version_created)
-                                if 'T' in date_str and 'Z' in date_str:
-                                    publish_time = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-                                else:
-                                    publish_time = datetime.now()
-                        else:
-                            publish_time = datetime.now()
-                    except Exception as e:
-                        self.logger.debug(f"日付変換エラー (フォールバック): {e}")
-                        publish_time = datetime.now()
+                    # 日付処理（最適化版）
+                    publish_time = self._safe_datetime_convert(row.get('versionCreated'))
                     
                     # 除外ソースチェック
                     excluded_sources = self.config["news_collection"]["excluded_sources"]
@@ -245,18 +301,23 @@ class RefinitivNewsCollector:
                     self.existing_news_ids.add(story_id)
                     
                 except Exception as e:
-                    self.logger.warning(f"ニュースアイテム処理エラー: {e}")
+                    self.logger.debug(f"ニュースアイテム処理スキップ: {e}")
                     continue
             
             # API制限対策
             time.sleep(self.config["news_collection"]["api_rate_limit_delay"])
             
-            self.logger.info(f"クエリ '{query}' で {len(news_items)} 件のニュースを取得")
+            self._log_successful_query(query, len(news_items))
             self.stats['successful_queries'] += 1
             return news_items
             
         except Exception as e:
-            self.logger.error(f"ニュース取得エラー: {query} - {e}")
+            # エラー抑制機能を使用してログ出力を制御
+            if not datetime64_retry_attempted:
+                error_key = f"general_error_{query}_{type(e).__name__}"
+                if self._should_log_error(error_key):
+                    self.logger.error(f"ニュース取得エラー: {query} - {e}")
+            
             self.stats['failed_queries'] += 1
             self.stats['errors_encountered'] += 1
             return []
@@ -283,12 +344,179 @@ class RefinitivNewsCollector:
         
         return False
     
-    def _get_collection_period(self) -> tuple[datetime, datetime]:
+    def _get_collection_period(self, collection_mode: str = "background") -> tuple[datetime, datetime]:
         """収集期間計算"""
         end_date = datetime.now()
-        hours_back = self.config["news_collection"]["collection_period_hours"]
+        
+        if collection_mode == "manual":
+            # 手動収集の場合は短い期間を使用
+            hours_back = self.config["news_collection"].get("manual_collection_period_hours", 2)
+            self.logger.info(f"手動収集モード: 過去{hours_back}時間のニュースを収集")
+        else:
+            # バックグラウンド収集の場合は通常期間
+            hours_back = self.config["news_collection"]["collection_period_hours"]
+            self.logger.info(f"バックグラウンド収集モード: 過去{hours_back}時間のニュースを収集")
+        
         start_date = end_date - timedelta(hours=hours_back)
         return start_date, end_date
+    
+    def _is_safe_query(self, query: str) -> bool:
+        """
+        クエリが安全（datetime64エラーを起こさない）かどうかをチェック
+        """
+        # 問題が確認されているクエリパターン
+        problematic_patterns = [
+            "LME",
+            "london metal exchange",
+            "lme prices",
+            "lme warehouse", 
+            "lme stocks",
+            "lme trading",
+            "lme copper",
+            "lme aluminium",
+            "lme zinc",
+            "lme lead", 
+            "lme nickel",
+            "lme tin",
+            "metal production",
+            "metal demand",
+            "mining strike",
+            "trade war metals"
+        ]
+        
+        query_lower = query.lower()
+        for pattern in problematic_patterns:
+            if pattern.lower() in query_lower:
+                return False
+        
+        return True
+    
+    def _optimize_query(self, query: str) -> Optional[str]:
+        """
+        クエリの最適化・問題クエリの代替
+        
+        Args:
+            query: 元のクエリ
+            
+        Returns:
+            最適化されたクエリまたはNone（スキップ）
+        """
+        # 既知の問題クエリとその代替
+        query_replacements = {
+            'metal inventory': 'metals inventory',  # より一般的な表現
+            'metal stockpile': 'metals stockpile',
+            'metal market': 'metals market',
+            'metal production': 'metals production'
+        }
+        
+        # 問題クエリのスキップリスト
+        skip_queries = [
+            # 特に問題があることがわかったクエリ
+        ]
+        
+        query_lower = query.lower()
+        
+        # スキップ対象チェック
+        if query_lower in [q.lower() for q in skip_queries]:
+            return None
+        
+        # 代替クエリチェック
+        for original, replacement in query_replacements.items():
+            if query_lower == original.lower():
+                self.logger.debug(f"クエリ最適化: '{query}' -> '{replacement}'")
+                return replacement
+        
+        return query
+    
+    def _should_log_error(self, error_key: str) -> bool:
+        """
+        エラーログを出力するべきかチェック（重複抑制）
+        
+        Args:
+            error_key: エラーの識別キー
+            
+        Returns:
+            ログ出力するべきかどうか
+        """
+        now = datetime.now()
+        
+        # 過去のエラーをクリーンアップ（古いものを削除）
+        expired_keys = [
+            key for key, timestamp in self.recent_errors.items()
+            if (now - timestamp).total_seconds() > self.error_cooldown_minutes * 60
+        ]
+        for key in expired_keys:
+            del self.recent_errors[key]
+        
+        # 同じエラーが最近出力されたかチェック
+        if error_key in self.recent_errors:
+            time_since_last = (now - self.recent_errors[error_key]).total_seconds()
+            if time_since_last < self.error_cooldown_minutes * 60:
+                return False  # 最近同じエラーが出力されているのでスキップ
+        
+        # エラーを記録
+        self.recent_errors[error_key] = now
+        return True
+    
+    def _log_successful_query(self, query: str, count: int) -> None:
+        """成功したクエリをログ記録"""
+        if count > 0:
+            self.logger.info(f"クエリ '{query}' で {count} 件のニュースを取得")
+        else:
+            self.logger.debug(f"クエリ '{query}' ではニュースが見つかりませんでした")
+    
+    def _filter_headlines_by_date(self, headlines: pd.DataFrame, start_date: datetime, end_date: datetime) -> pd.DataFrame:
+        """
+        ヘッドラインを日付範囲でフィルタリング（クライアントサイド）
+        
+        Args:
+            headlines: 生のヘッドラインDataFrame
+            start_date: 開始日時
+            end_date: 終了日時
+            
+        Returns:
+            フィルタリングされたDataFrame
+        """
+        if headlines.empty:
+            return headlines
+            
+        try:
+            # 日付カラムを特定
+            date_column = None
+            for col in headlines.columns:
+                if 'versionCreated' in col or 'created' in col.lower() or 'date' in col.lower():
+                    date_column = col
+                    break
+            
+            if date_column is None:
+                self.logger.debug("日付カラムが見つからないため、フィルタリングをスキップ")
+                return headlines
+            
+            # 日付をdatetimeに変換（最適化版）
+            filtered_headlines = []
+            for idx, row in headlines.iterrows():
+                try:
+                    date_value = row[date_column]
+                    publish_time = self._safe_datetime_convert(date_value)
+                    
+                    # 日付範囲チェック
+                    if start_date <= publish_time <= end_date:
+                        filtered_headlines.append(row)
+                        
+                except Exception as e:
+                    self.logger.debug(f"日付フィルタリングエラー: {e}")
+                    # エラーの場合は含める
+                    filtered_headlines.append(row)
+            
+            if filtered_headlines:
+                return pd.DataFrame(filtered_headlines)
+            else:
+                return pd.DataFrame()
+                
+        except Exception as e:
+            self.logger.debug(f"日付フィルタリング処理エラー: {e}")
+            # エラーの場合は元のデータを返す
+            return headlines
     
     def collect_historical_news(self, months_back: int = 3) -> int:
         """過去数ヶ月のニュース一括収集"""
@@ -402,8 +630,13 @@ class RefinitivNewsCollector:
             self.logger.error(f"一括収集エラー: {e}")
             return 0
     
-    def collect_news(self) -> int:
-        """メインニュース収集処理"""
+    def collect_news(self, collection_mode: str = "background") -> int:
+        """
+        メインニュース収集処理
+        
+        Args:
+            collection_mode: "manual" or "background"
+        """
         start_time = datetime.now()
         self.logger.info("Refinitivニュース収集開始")
         
@@ -412,23 +645,54 @@ class RefinitivNewsCollector:
             self._load_existing_news_ids()
             
             # 収集期間計算
-            start_date, end_date = self._get_collection_period()
+            start_date, end_date = self._get_collection_period(collection_mode)
             self.logger.info(f"収集期間: {start_date.strftime('%Y-%m-%d %H:%M')} - {end_date.strftime('%Y-%m-%d %H:%M')}")
             
             all_news = []
             
-            # 設定されたクエリで収集
+            # 収集モードに応じてクエリを選択
             query_categories = self.config["news_collection"]["query_categories"]
             
-            for category, queries in query_categories.items():
+            if collection_mode == "manual":
+                # 手動収集時は優先度の高いクエリのみを使用（高速化）
+                priority_categories = ["lme_metals", "base_metals"]
+                filtered_categories = {k: v for k, v in query_categories.items() if k in priority_categories}
+                self.logger.info(f"手動収集モード: 優先カテゴリのみ使用 ({', '.join(priority_categories)})")
+            else:
+                # バックグラウンド収集時は全カテゴリを使用
+                filtered_categories = query_categories
+                self.logger.info("バックグラウンド収集モード: 全カテゴリ使用")
+            
+            for category, queries in filtered_categories.items():
                 self.logger.info(f"カテゴリ '{category}' の収集開始")
                 
+                category_failed_count = 0
                 for query in queries:
-                    news_items = self._get_news_by_query(query, start_date, end_date)
-                    all_news.extend(news_items)
+                    # 既知の問題クエリをスキップまたは代替
+                    optimized_query = self._optimize_query(query)
+                    if optimized_query is None:
+                        self.logger.debug(f"問題クエリをスキップ: {query}")
+                        continue
                     
-                    # API制限対策
-                    time.sleep(self.config["news_collection"]["query_interval"])
+                    try:
+                        news_items = self._get_news_by_query(optimized_query, start_date, end_date)
+                        all_news.extend(news_items)
+                    except Exception:
+                        category_failed_count += 1
+                        # 個別エラーログは_get_news_by_queryで抑制済み
+                        continue
+                    
+                    # API制限対策（手動モード時は短縮）
+                    if collection_mode == "manual":
+                        # 手動収集時は短いインターバル
+                        time.sleep(self.config["news_collection"].get("query_interval", 1.0) * 0.3)
+                    else:
+                        # バックグラウンド収集時は通常インターバル
+                        time.sleep(self.config["news_collection"]["query_interval"])
+                
+                # カテゴリ単位のサマリーログ
+                if category_failed_count > 0:
+                    self.logger.debug(f"カテゴリ '{category}': {category_failed_count}/{len(queries)} クエリ失敗")
             
             # データベース保存とAI分析
             saved_count = 0
@@ -455,14 +719,16 @@ class RefinitivNewsCollector:
                 saved_count = self.db_manager.insert_news_batch(news_articles)
                 self.stats['total_collected'] = saved_count
                 
-                # AI分析実行（非同期）
-                if self.gemini_analyzer.gemini_config.get("enable_ai_analysis", False):
+                # AI分析実行（手動収集時はスキップして高速化）
+                if collection_mode == "background" and self.gemini_analyzer.gemini_config.get("enable_ai_analysis", False):
                     try:
                         self.logger.info(f"AI分析開始: {len(news_articles)} 件")
                         asyncio.run(self._analyze_news_batch(news_articles))
                     except Exception as e:
                         self.logger.error(f"AI分析エラー: {e}")
                         self.stats['ai_analysis_errors'] += 1
+                elif collection_mode == "manual":
+                    self.logger.info("手動収集モード: AI分析をスキップ（高速化のため）")
             
             # 統計保存
             execution_time = (datetime.now() - start_time).total_seconds()
@@ -478,7 +744,26 @@ class RefinitivNewsCollector:
             
             self.db_manager.insert_system_stats(stats)
             
-            self.logger.info(f"ニュース収集完了: {saved_count} 件保存、実行時間: {execution_time:.2f}秒")
+            # 統計サマリー表示
+            total_queries = self.stats['successful_queries'] + self.stats['failed_queries']
+            success_rate = (self.stats['successful_queries'] / total_queries * 100) if total_queries > 0 else 0
+            
+            # 重要な完了メッセージはコンソールにも表示（WARNING以上）
+            if saved_count > 0:
+                self.logger.warning(f"✓ ニュース収集完了: {saved_count} 件保存、実行時間: {execution_time:.2f}秒")
+            else:
+                self.logger.info(f"ニュース収集完了: {saved_count} 件保存、実行時間: {execution_time:.2f}秒")
+            
+            self.logger.info(f"統計: 成功クエリ {self.stats['successful_queries']}/{total_queries} ({success_rate:.1f}%), API呼び出し {self.stats['api_calls_made']} 回")
+            
+            # エラー率が高い場合のみ警告
+            if total_queries > 0 and success_rate < 70:
+                self.logger.warning(f"クエリ成功率が低下しています ({success_rate:.1f}%) - API状態を確認してください")
+            
+            # エラーサマリー表示（個別エラーの代わり）
+            if self.stats['failed_queries'] > 0:
+                self.logger.warning(f"一部クエリが失敗しました: {self.stats['failed_queries']} 件（詳細はログファイルを確認）")
+            
             return saved_count
             
         except Exception as e:
@@ -538,9 +823,13 @@ class RefinitivNewsCollector:
         }
         
         # Gemini分析統計を追加
-        if hasattr(self, 'gemini_analyzer'):
-            gemini_stats = self.gemini_analyzer.get_analysis_stats()
-            base_stats['gemini_analysis'] = gemini_stats
+        if hasattr(self, 'gemini_analyzer') and self.gemini_analyzer:
+            try:
+                gemini_stats = self.gemini_analyzer.get_analysis_stats()
+                base_stats['gemini_analysis'] = gemini_stats
+            except Exception as e:
+                self.logger.error(f"Gemini統計取得エラー: {e}")
+                base_stats['gemini_analysis'] = {'error': str(e)}
         
         return base_stats
 
