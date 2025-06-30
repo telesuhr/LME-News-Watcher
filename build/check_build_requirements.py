@@ -67,7 +67,7 @@ def check_required_files():
         'web/index.html',
         'web/css/style.css',
         'web/js/app.js',
-        'build_exe.py'
+        'build/build_exe.py'  # buildディレクトリ内に修正
     ]
     
     missing_files = []

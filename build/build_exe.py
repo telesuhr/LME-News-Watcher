@@ -8,6 +8,7 @@ import PyInstaller.__main__
 import os
 import shutil
 import sys
+import json
 from pathlib import Path
 
 def build_executable():
