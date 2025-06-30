@@ -156,6 +156,11 @@
     "enable_file_logging": true,
     "enable_console_logging": true
   },
+  "passive_mode": {
+    "check_interval_minutes": 2,
+    "enable_database_polling": true,
+    "auto_refresh_on_update": true
+  },
   "gemini_integration": {
     "api_key": "YOUR_GEMINI_API_KEY_HERE",
     "enable_ai_analysis": true,

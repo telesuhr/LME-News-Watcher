@@ -216,8 +216,9 @@ def main():
         logger.info(f"サーバー: {db_config.get('server') or db_config.get('host')}")
         logger.info(f"データベース: {db_config['database']}")
         
-        # データベースマネージャー初期化
-        db_manager = SpecDatabaseManager(db_config)
+        # データベースマネージャー初期化（全体設定を渡す）
+        config["database"] = db_config
+        db_manager = SpecDatabaseManager(config)
         
         # 接続テスト
         if not test_database_connection(db_manager, logger):

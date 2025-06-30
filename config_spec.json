@@ -23,7 +23,7 @@
     "query_categories": {
       "lme_metals": [
         "copper",
-        "aluminium", 
+        "aluminium",
         "zinc",
         "lead",
         "nickel",
@@ -58,7 +58,7 @@
       ],
       "supply_demand": [
         "mining output",
-        "smelter production", 
+        "smelter production",
         "industrial demand",
         "construction demand",
         "production output",
@@ -66,7 +66,7 @@
       ],
       "market_disruption": [
         "smelter shutdown",
-        "supply disruption", 
+        "supply disruption",
         "metal tariff",
         "export restrictions",
         "mining disruption",
@@ -77,14 +77,14 @@
       "metals",
       "copper",
       "aluminium",
-      "zinc", 
+      "zinc",
       "lead",
       "nickel",
       "tin",
       "warehouse",
       "inventory",
       "stocks",
-      "prices"
+      "iron ore"
     ],
     "market_keywords": [
       "copper",

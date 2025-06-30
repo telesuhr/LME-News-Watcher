@@ -149,6 +149,75 @@ class NewsWatcherApp:
             except Exception as e:
                 self.logger.error(f"ポーリングエラー: {e}")
                 time.sleep(60)  # エラー時は1分待機
+
+    def start_passive_mode_polling(self):
+        """パッシブモード用のデータベース更新ポーリング開始"""
+        if hasattr(self, 'passive_polling_thread') and self.passive_polling_thread and self.passive_polling_thread.is_alive():
+            return  # 既に実行中
+        
+        self.passive_polling_active = True
+        self.passive_polling_thread = threading.Thread(
+            target=self._passive_polling_worker,
+            daemon=True
+        )
+        self.passive_polling_thread.start()
+        self.logger.info("パッシブモード: データベース更新ポーリング開始")
+    
+    def _passive_polling_worker(self):
+        """パッシブモード用ポーリングワーカー（データベース更新チェック）"""
+        while getattr(self, 'passive_polling_active', False):
+            try:
+                # 新しいニュースがあるかチェック
+                self._check_database_updates()
+                
+                # 高評価ニュース通知チェック（パッシブモードでも実行）
+                self._check_high_importance_news()
+                
+                # 次回チェックまで待機（パッシブモードは短い間隔）
+                passive_check_interval = self.config.get("passive_mode", {}).get("check_interval_minutes", 2)
+                for i in range(passive_check_interval * 60):
+                    if not getattr(self, 'passive_polling_active', False):
+                        break
+                    time.sleep(1)
+                    
+            except Exception as e:
+                self.logger.error(f"パッシブモードポーリングエラー: {e}")
+                time.sleep(60)  # エラー時は1分待機
+    
+    def _check_database_updates(self):
+        """データベースの更新をチェックして通知"""
+        try:
+            # 最後のチェック時間以降の新しいニュースを取得
+            if not hasattr(self, '_last_passive_check'):
+                self._last_passive_check = datetime.now() - timedelta(minutes=5)
+            
+            from models_spec import NewsSearchFilter
+            search_filter = NewsSearchFilter()
+            search_filter.start_date = self._last_passive_check
+            search_filter.limit = 50
+            
+            new_news = self.db_manager.search_news(search_filter)
+            
+            if new_news:
+                self.logger.info(f"パッシブモード: {len(new_news)}件の新しいニュースを検出")
+                # WebUIに更新通知を送信
+                eel.notify_database_update({
+                    'type': 'database_update',
+                    'new_count': len(new_news),
+                    'timestamp': datetime.now().isoformat()
+                })
+            
+            self._last_passive_check = datetime.now()
+            
+        except Exception as e:
+            self.logger.error(f"データベース更新チェックエラー: {e}")
+    
+    def stop_passive_mode_polling(self):
+        """パッシブモードポーリング停止"""
+        self.passive_polling_active = False
+        if hasattr(self, 'passive_polling_thread') and self.passive_polling_thread and self.passive_polling_thread.is_alive():
+            self.passive_polling_thread.join(timeout=5)
+        self.logger.info("パッシブモードポーリング停止")
     
     def _check_high_importance_news(self):
         """高評価ニュースの通知チェック"""
@@ -232,6 +301,8 @@ class NewsWatcherApp:
             # Passive モードに切り替わった場合
             self.logger.info("Passive モードに切り替え - バックグラウンドポーリング停止")
             self.stop_background_polling()
+            # パッシブモードポーリング開始
+            self.start_passive_mode_polling()
     
     def run(self):
         """アプリケーション実行"""
@@ -261,6 +332,8 @@ class NewsWatcherApp:
                 self.refinitiv_detector.start_periodic_check(self._on_refinitiv_status_change)
             else:
                 print("Passiveモード: データベース閲覧・手動登録のみ利用可能")
+                # パッシブモードでもデータベース更新を監視
+                self.start_passive_mode_polling()
             
             # UI開始
             self.logger.info(f"UIアプリケーション開始（{self.current_mode}モード）")
@@ -270,6 +343,8 @@ class NewsWatcherApp:
             self.logger.error(f"アプリケーション実行エラー: {e}")
         finally:
             self.stop_background_polling()
+            if hasattr(self, 'stop_passive_mode_polling'):
+                self.stop_passive_mode_polling()
 
 # Global app instance
 app = None

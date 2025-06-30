@@ -84,6 +84,59 @@ body {
     50% { opacity: 0.5; }
 }
 
+/* データベース更新トースト */
+.database-update-toast {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    color: white;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(52, 152, 219, 0.3);
+    max-width: 350px;
+    z-index: 10001;
+    cursor: pointer;
+    animation: slideInRight 0.3s ease-out;
+}
+
+.database-update-toast:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 25px rgba(52, 152, 219, 0.4);
+}
+
+.toast-update-icon {
+    color: #74b9ff;
+    font-size: 1.2rem;
+    margin-right: 0.5rem;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.toast-fade-out {
+    animation: fadeOut 0.3s ease-out forwards;
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+}
+
 /* ナビゲーション */
 .nav-tabs {
     display: flex;

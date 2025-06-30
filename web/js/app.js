@@ -1376,6 +1376,7 @@ class NewsWatcher {
         
         // Eelでエクスポーズされた関数として登録（Python側から呼び出し可能にする）
         window.eel.expose(this.receiveHighImportanceNotification.bind(this), 'notify_high_importance_news');
+        window.eel.expose(this.receiveDatabaseUpdateNotification.bind(this), 'notify_database_update');
     }
     
     receiveHighImportanceNotification(notificationData) {
@@ -1390,6 +1391,20 @@ class NewsWatcher {
         
         // トースト通知を表示
         this.showHighImportanceToast(notificationData);
+    }
+    
+    receiveDatabaseUpdateNotification(updateData) {
+        console.log('データベース更新通知受信:', updateData);
+        
+        // パッシブモードのデータベース更新トーストを表示
+        this.showDatabaseUpdateToast(updateData);
+        
+        // 現在表示中のタブが最新ニュースの場合、自動更新
+        if (this.currentTab === 'latest') {
+            setTimeout(() => {
+                this.loadLatestNews();
+            }, 2000); // 2秒後に更新（ユーザーがトーストを読む時間を与える）
+        }
     }
     
     updateNotificationIndicator() {
@@ -1444,6 +1459,44 @@ class NewsWatcher {
         setTimeout(() => {
             this.removeToast(toast);
         }, 7000);
+    }
+    
+    showDatabaseUpdateToast(updateData) {
+        // 既存のデータベース更新トーストを削除
+        const existingToast = document.querySelector('.database-update-toast');
+        if (existingToast) {
+            existingToast.remove();
+        }
+        
+        // トースト要素を作成
+        const toast = document.createElement('div');
+        toast.className = 'database-update-toast';
+        toast.onclick = () => {
+            // 最新ニュースタブに切り替え
+            this.switchTab('latest');
+            this.removeToast(toast);
+        };
+        
+        toast.innerHTML = `
+            <button class="toast-close" onclick="event.stopPropagation(); this.parentElement.remove();">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="toast-header">
+                <i class="fas fa-database toast-update-icon"></i>
+                <span>ニュース更新</span>
+            </div>
+            <div class="toast-title">${updateData.new_count}件の新しいニュースがあります</div>
+            <div class="toast-meta">
+                <span>クリックして最新ニュースを表示</span>
+            </div>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // 5秒後に自動削除
+        setTimeout(() => {
+            this.removeToast(toast);
+        }, 5000);
     }
     
     removeToast(toast) {
