@@ -30,6 +30,9 @@ class NewsWatcherApp:
         self.config_path = config_path
         self.config = self._load_config()
         
+        # ログ設定（データベースセットアップの前に初期化）
+        self.logger = self._setup_logger()
+        
         # データベース自動検出
         self.db_manager = self._setup_database()
         
@@ -42,9 +45,6 @@ class NewsWatcherApp:
         self.polling_service = None
         self.polling_thread = None
         self.is_polling_active = False
-        
-        # ログ設定
-        self.logger = self._setup_logger()
         
         # eelアプリケーション設定
         eel.init('web')
