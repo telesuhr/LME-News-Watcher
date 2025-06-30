@@ -603,15 +603,19 @@ def delete_manual_news(news_id: str) -> Dict:
     """手動ニュース削除"""
     try:
         app = init_app()
+        app.logger.info(f"手動ニュース削除要求受信: news_id={news_id}")
+        
         success = app.db_manager.delete_news_by_id(news_id)
         
         if success:
-            app.logger.info(f"手動ニュース削除: {news_id}")
-            return {'success': True}
+            app.logger.info(f"手動ニュース削除成功: {news_id}")
+            return {'success': True, 'message': 'ニュースを削除しました'}
         else:
+            app.logger.warning(f"手動ニュース削除失敗: {news_id}")
             return {'success': False, 'error': '削除対象が見つからないか、手動登録ニュースではありません'}
             
     except Exception as e:
+        app.logger.error(f"手動ニュース削除例外: {e}")
         return {'success': False, 'error': str(e)}
 
 @eel.expose
@@ -1190,6 +1194,43 @@ def fix_manual_entry_source() -> Dict:
             
     except Exception as e:
         app.logger.error(f"ソース名更新エラー: {e}")
+        return {'success': False, 'error': str(e)}
+
+@eel.expose
+def test_manual_news_deletion() -> Dict:
+    """手動ニュース削除のテスト"""
+    try:
+        app = init_app()
+        
+        # 手動ニュースのリストを取得
+        search_filter = NewsSearchFilter()
+        search_filter.is_manual = True
+        search_filter.limit = 5
+        
+        manual_news = app.db_manager.search_news(search_filter)
+        
+        if not manual_news:
+            return {
+                'success': False,
+                'message': '削除テスト用の手動ニュースが見つかりません'
+            }
+        
+        # 最初の手動ニュースのIDを取得
+        test_news_id = manual_news[0]['news_id']
+        test_title = manual_news[0]['title']
+        
+        app.logger.info(f"削除テスト対象: news_id={test_news_id}, title='{test_title[:30]}...'")
+        
+        return {
+            'success': True,
+            'test_news_id': test_news_id,
+            'test_title': test_title,
+            'manual_news_count': len(manual_news),
+            'message': f'削除テスト準備完了。対象: {test_title[:30]}...'
+        }
+        
+    except Exception as e:
+        app.logger.error(f"削除テスト準備エラー: {e}")
         return {'success': False, 'error': str(e)}
 
 

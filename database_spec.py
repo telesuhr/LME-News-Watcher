@@ -449,22 +449,48 @@ class SpecDatabaseManager:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
                 
+                # 削除前に対象ニュースの存在確認
+                self.logger.info(f"ニュース削除要求: news_id={news_id}")
+                
+                # まず対象ニュースが存在するか確認
+                if self.db_type == "postgresql":
+                    check_sql = "SELECT news_id, title, is_manual FROM news_table WHERE news_id = %s"
+                else:
+                    check_sql = "SELECT news_id, title, is_manual FROM news_table WHERE news_id = ?"
+                
+                cursor.execute(check_sql, (news_id,))
+                existing_news = cursor.fetchone()
+                
+                if not existing_news:
+                    self.logger.warning(f"削除対象ニュースが見つからない: {news_id}")
+                    return False
+                
+                self.logger.info(f"削除対象ニュース確認: news_id={existing_news[0]}, title='{existing_news[1][:30]}...', is_manual={existing_news[2]}")
+                
+                # 手動登録でない場合は削除拒否
+                if not existing_news[2]:
+                    self.logger.warning(f"手動登録ニュースではないため削除拒否: {news_id}")
+                    return False
+                
+                # 削除実行
                 if self.db_type == "postgresql":
                     sql = "DELETE FROM news_table WHERE news_id = %s AND is_manual = TRUE"
                 else:
                     sql = "DELETE FROM news_table WHERE news_id = ? AND is_manual = 1"
                 
                 cursor.execute(sql, (news_id,))
+                affected_rows = cursor.rowcount
                 
-                if cursor.rowcount > 0:
-                    self.logger.info(f"ニュース削除成功: {news_id}")
+                if affected_rows > 0:
+                    self.logger.info(f"ニュース削除成功: {news_id} (影響行数: {affected_rows})")
                     return True
                 else:
-                    self.logger.warning(f"削除対象ニュースなし: {news_id}")
+                    self.logger.warning(f"削除処理失敗: {news_id} (影響行数: {affected_rows})")
                     return False
                 
         except Exception as e:
             self.logger.error(f"ニュース削除エラー: {e}")
+            self.logger.error(f"削除失敗news_id: {news_id}")
             return False
     
     def get_duplicate_news_ids(self, days_back: int = 7) -> List[str]:
