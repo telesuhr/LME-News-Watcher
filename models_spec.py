@@ -401,10 +401,16 @@ class NewsSearchFilter:
             return "ORDER BY publish_time ASC, acquire_time ASC"
         
         elif self.sort_by == "rating_desc":
-            return "ORDER BY rating DESC NULLS LAST, publish_time DESC"
+            if db_type == "postgresql":
+                return "ORDER BY rating DESC NULLS LAST, publish_time DESC"
+            else:  # SQL Server
+                return "ORDER BY CASE WHEN rating IS NULL THEN 1 ELSE 0 END, rating DESC, publish_time DESC"
         
         elif self.sort_by == "rating_asc":
-            return "ORDER BY rating ASC NULLS LAST, publish_time DESC"
+            if db_type == "postgresql":
+                return "ORDER BY rating ASC NULLS LAST, publish_time DESC"
+            else:  # SQL Server
+                return "ORDER BY CASE WHEN rating IS NULL THEN 1 ELSE 0 END, rating ASC, publish_time DESC"
         
         elif self.sort_by == "relevance":
             # 関連性ソート: キーワードマッチ度 + レーティング + 時系列

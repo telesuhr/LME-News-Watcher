@@ -831,9 +831,9 @@ class SpecDatabaseManager:
                 LENGTH(body) > {self.min_body_length} AND 
                 NOT (body ~ '^\\s*https?://[^\\s]+\\s*$')
             )"""
-        else:  # SQL Server
+        else:  # SQL Server - NVARCHAR(MAX)でLEN()は使えないためDATALENGTH()使用
             return f"""(
-                LEN(body) > {self.min_body_length} AND 
+                DATALENGTH(body) > {self.min_body_length * 2} AND 
                 body NOT LIKE 'http://%' AND 
                 body NOT LIKE 'https://%'
             )"""
