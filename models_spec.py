@@ -201,6 +201,10 @@ def extract_related_metals(title: str, body: str) -> str:
     Returns:
         カンマ区切りの金属名文字列
     """
+    # None値の安全な処理
+    title = str(title) if title is not None else ""
+    body = str(body) if body is not None else ""
+    
     text = f"{title} {body}".lower()
     found_metals = []
     
@@ -226,21 +230,26 @@ def validate_manual_news_input(data: dict) -> tuple[bool, str]:
     required_fields = ['title', 'body', 'source']
     
     for field in required_fields:
-        if not data.get(field, '').strip():
+        value = data.get(field)
+        if value is None or str(value).strip() == '':
             return False, f"{field} は必須項目です"
     
     # タイトル長制限
-    if len(data.get('title', '')) > 500:
+    title = str(data.get('title', ''))
+    if len(title) > 500:
         return False, "タイトルは500文字以内で入力してください"
     
     # 本文長制限  
-    if len(data.get('body', '')) > 10000:
+    body = str(data.get('body', ''))
+    if len(body) > 10000:
         return False, "本文は10000文字以内で入力してください"
     
     # URL形式チェック（入力がある場合）
-    url = data.get('url', '').strip()
-    if url and not (url.startswith('http://') or url.startswith('https://')):
-        return False, "URLはhttp://またはhttps://で始まる必要があります"
+    url = data.get('url')
+    if url is not None:
+        url_str = str(url).strip()
+        if url_str and not (url_str.startswith('http://') or url_str.startswith('https://')):
+            return False, "URLはhttp://またはhttps://で始まる必要があります"
     
     return True, ""
 
