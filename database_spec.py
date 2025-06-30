@@ -295,7 +295,7 @@ class SpecDatabaseManager:
                 # ORDER BY句生成
                 order_clause = search_filter.to_sql_order_clause(self.db_type)
                 
-                # 本文がURLのみのものを除外する条件を追加（設定で有効な場合）
+                # 本文がURLのみのものを除外する条件を追加（設定で有効な場合、手動登録は除外対象外）
                 if self.filter_url_only:
                     url_only_filter = self._get_url_only_filter()
                     if where_clause == "1=1":
@@ -404,13 +404,20 @@ class SpecDatabaseManager:
             return 0
     
     def get_sources_list(self) -> List[str]:
-        """ソース一覧取得"""
+        """ソース一覧取得（手動登録を最上位に表示）"""
         try:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
                 sql = "SELECT DISTINCT source FROM news_table ORDER BY source"
                 cursor.execute(sql)
-                return [row[0] for row in cursor.fetchall()]
+                sources = [row[0] for row in cursor.fetchall()]
+                
+                # 手動登録を最上位に移動
+                if '手動登録' in sources:
+                    sources.remove('手動登録')
+                    sources.insert(0, '手動登録')
+                
+                return sources
                 
         except Exception as e:
             self.logger.error(f"ソース一覧取得エラー: {e}")
@@ -869,24 +876,31 @@ class SpecDatabaseManager:
             return {}
 
     def _get_url_only_filter(self) -> str:
-        """本文がURLのみの記事を除外するフィルター条件を生成"""
+        """本文がURLのみの記事を除外するフィルター条件を生成（手動登録は除外対象外）"""
         if self.db_type == "postgresql":
             return f"""(
-                LENGTH(body) > {self.min_body_length} AND 
-                NOT (body ~ '^\\s*https?://[^\\s]+\\s*$')
+                is_manual = TRUE OR 
+                (LENGTH(body) > {self.min_body_length} AND 
+                 NOT (body ~ '^\\s*https?://[^\\s]+\\s*$'))
             )"""
         else:  # SQL Server - NVARCHAR(MAX)でLEN()は使えないためDATALENGTH()使用
             return f"""(
-                DATALENGTH(body) > {self.min_body_length * 2} AND 
-                body NOT LIKE 'http://%' AND 
-                body NOT LIKE 'https://%'
+                is_manual = 1 OR 
+                (DATALENGTH(body) > {self.min_body_length * 2} AND 
+                 body NOT LIKE 'http://%' AND 
+                 body NOT LIKE 'https://%')
             )"""
     
     def _filter_url_only_news(self, news_list: List[Dict]) -> List[Dict]:
-        """クライアントサイドでURL のみの本文を除外"""
+        """クライアントサイドでURL のみの本文を除外（手動登録は除外対象外）"""
         filtered_news = []
         
         for news in news_list:
+            # 手動登録ニュースは常に表示
+            if news.get('is_manual'):
+                filtered_news.append(news)
+                continue
+                
             body = news.get('body', '').strip()
             
             # 本文が空または短すぎる場合は除外
