@@ -1233,6 +1233,139 @@ def test_manual_news_deletion() -> Dict:
         app.logger.error(f"削除テスト準備エラー: {e}")
         return {'success': False, 'error': str(e)}
 
+@eel.expose
+def debug_manual_filter_issue() -> Dict:
+    """手動登録フィルターの問題を調査"""
+    try:
+        app = init_app()
+        
+        with app.db_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # 手動登録関連の全データを詳細調査
+            if app.db_manager.db_type == "sqlserver":
+                # SQL Serverの場合
+                sql = """
+                    SELECT TOP 20 news_id, title, source, is_manual,
+                           CASE WHEN is_manual = 1 THEN 'TRUE' 
+                                WHEN is_manual = 0 THEN 'FALSE' 
+                                ELSE 'NULL' END as is_manual_text
+                    FROM news_table 
+                    WHERE source = '手動登録' OR is_manual = 1
+                    ORDER BY acquire_time DESC
+                """
+            else:
+                # PostgreSQLの場合
+                sql = """
+                    SELECT news_id, title, source, is_manual,
+                           CASE WHEN is_manual = TRUE THEN 'TRUE' 
+                                WHEN is_manual = FALSE THEN 'FALSE' 
+                                ELSE 'NULL' END as is_manual_text
+                    FROM news_table 
+                    WHERE source = '手動登録' OR is_manual = TRUE
+                    ORDER BY acquire_time DESC
+                    LIMIT 20
+                """
+            
+            cursor.execute(sql)
+            results = cursor.fetchall()
+            
+            # 結果を辞書形式に変換
+            columns = ['news_id', 'title', 'source', 'is_manual_raw', 'is_manual_text']
+            debug_data = []
+            for row in results:
+                debug_data.append(dict(zip(columns, row)))
+            
+            # フィルターテスト
+            search_filter = NewsSearchFilter()
+            search_filter.is_manual = True
+            search_filter.limit = 20
+            
+            filtered_results = app.db_manager.search_news(search_filter)
+            
+            app.logger.info(f"手動登録調査 - DB直接: {len(debug_data)}件, フィルター結果: {len(filtered_results)}件")
+            
+            # 不整合チェック
+            db_news_ids = {item['news_id'] for item in debug_data}
+            filter_news_ids = {item['news_id'] for item in filtered_results}
+            
+            missing_in_filter = db_news_ids - filter_news_ids
+            extra_in_filter = filter_news_ids - db_news_ids
+            
+            return {
+                'success': True,
+                'db_direct_count': len(debug_data),
+                'filter_result_count': len(filtered_results),
+                'debug_data': debug_data[:10],  # 最初の10件のみ
+                'missing_in_filter': list(missing_in_filter),
+                'extra_in_filter': list(extra_in_filter),
+                'inconsistency_found': len(missing_in_filter) > 0 or len(extra_in_filter) > 0
+            }
+            
+    except Exception as e:
+        app.logger.error(f"手動登録フィルター調査エラー: {e}")
+        return {'success': False, 'error': str(e)}
+
+@eel.expose
+def fix_manual_filter_inconsistency() -> Dict:
+    """手動登録フィルターの不整合を修正"""
+    try:
+        app = init_app()
+        
+        with app.db_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # ソースが「手動登録」なのにis_manual=0のレコードを修正
+            if app.db_manager.db_type == "sqlserver":
+                # 不整合チェック
+                cursor.execute("SELECT COUNT(*) FROM news_table WHERE source = '手動登録' AND is_manual = 0")
+                inconsistent_count = cursor.fetchone()[0]
+                
+                if inconsistent_count > 0:
+                    # 修正実行
+                    cursor.execute("UPDATE news_table SET is_manual = 1 WHERE source = '手動登録' AND is_manual = 0")
+                    updated_count = cursor.rowcount
+                    
+                    app.logger.info(f"手動登録フラグ修正: {updated_count}件更新")
+                    
+                    return {
+                        'success': True,
+                        'message': f'手動登録フラグを修正しました ({updated_count}件)',
+                        'updated_count': updated_count
+                    }
+                else:
+                    return {
+                        'success': True,
+                        'message': '修正が必要な不整合はありませんでした',
+                        'updated_count': 0
+                    }
+            else:
+                # PostgreSQLの場合
+                cursor.execute("SELECT COUNT(*) FROM news_table WHERE source = '手動登録' AND is_manual = FALSE")
+                inconsistent_count = cursor.fetchone()[0]
+                
+                if inconsistent_count > 0:
+                    cursor.execute("UPDATE news_table SET is_manual = TRUE WHERE source = '手動登録' AND is_manual = FALSE")
+                    updated_count = cursor.rowcount
+                    
+                    app.logger.info(f"手動登録フラグ修正: {updated_count}件更新")
+                    
+                    return {
+                        'success': True,
+                        'message': f'手動登録フラグを修正しました ({updated_count}件)',
+                        'updated_count': updated_count
+                    }
+                else:
+                    return {
+                        'success': True,
+                        'message': '修正が必要な不整合はありませんでした',
+                        'updated_count': 0
+                    }
+            
+    except Exception as e:
+        app.logger.error(f"手動登録フラグ修正エラー: {e}")
+        return {'success': False, 'error': str(e)}
+
 
 def main():
     """メイン実行関数"""
