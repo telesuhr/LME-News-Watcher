@@ -24,7 +24,6 @@ def build_executable():
         '--name', app_name,
         '--onefile',                    # 単一ファイル
         '--windowed',                   # コンソールウィンドウを非表示
-        '--icon=web/favicon.ico',       # アイコン（存在する場合）
         '--add-data', 'web;web',        # Webファイルを含める
         '--add-data', 'config_spec.json;.',  # 設定ファイルを含める
         '--hidden-import', 'eel',
@@ -38,6 +37,14 @@ def build_executable():
         '--noconfirm',                  # 確認なしで実行
         '--clean',                      # クリーンビルド
     ]
+    
+    # アイコンファイルの存在確認（存在する場合のみ追加）
+    icon_path = Path('web/favicon.ico')
+    if icon_path.exists():
+        pyinstaller_args.insert(-3, '--icon=web/favicon.ico')  # cleanの前に挿入
+        print(f"アイコンファイル使用: {icon_path}")
+    else:
+        print("アイコンファイルが見つからないため、デフォルトアイコンを使用します")
     
     print("PyInstallerによる実行可能ファイル作成開始...")
     print(f"アプリケーション名: {app_name}")
