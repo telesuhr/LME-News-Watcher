@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 仕様書対応データベース初期化スクリプト
-PostgreSQL/SQL Server両対応
+PostgreSQL/SQL Server/Azure SQL Database対応
 """
 
 import json
@@ -11,7 +11,6 @@ from pathlib import Path
 from datetime import datetime
 
 from database_spec import SpecDatabaseManager
-from database_detector import DatabaseDetector
 
 def setup_logging():
     """ログ設定"""
@@ -147,13 +146,17 @@ def display_setup_summary(config, logger):
         print(f"ホスト: {db_config['host']}")
         print(f"ポート: {db_config['port']}")
         print(f"ユーザー: {db_config['user']}")
-    else:  # SQL Server
+    else:  # SQL Server / Azure SQL Database
         print(f"サーバー: {db_config['server']}")
         if db_config.get('trusted_connection'):
             print(f"認証方式: Windows認証")
         else:
             print(f"認証方式: SQL Server認証")
             print(f"ユーザー: {db_config['user']}")
+        
+        # Azure SQL Database検出
+        if 'database.windows.net' in db_config.get('server', ''):
+            print("🌐 Azure SQL Database環境を検出")
     
     print("\n📋 作成されたテーブル:")
     print("✅ news_table - ニュースデータ（Refinitiv + 手動登録）")
@@ -178,7 +181,7 @@ def display_setup_summary(config, logger):
     print("• 過去ニュース検索・閲覧")
     print("• Web技術ベースのUIツール")
     print("• PyInstaller対応（.exe作成）")
-    print("• PostgreSQL/SQL Server両対応")
+    print("• PostgreSQL/SQL Server/Azure SQL Database対応")
     
     print("\n📞 サポート:")
     print("• ログファイル: logs/")
@@ -195,30 +198,36 @@ def main():
         # 設定読み込み
         config = load_config()
         
-        # データベース自動検出
-        print("\nデータベース接続を確認しています...")
-        detector = DatabaseDetector("config_spec.json")
-        db_type, db_config = detector.detect_and_configure()
+        # データベース設定を直接使用（検出機能をバイパス）
+        print("\nデータベース接続設定確認中...")
+        db_config = config["database"]
+        db_type = db_config["database_type"]
         
-        # 利用可能なデータベース表示
-        available_dbs = detector.get_available_databases()
-        print("\n利用可能なデータベース:")
-        for db, is_available in available_dbs.items():
-            status = "✓" if is_available else "✗"
-            print(f"  {status} {db}")
+        print(f"設定ファイルから読み込み:")
+        print(f"  データベースタイプ: {db_type}")
+        print(f"  サーバー: {db_config.get('server', 'N/A')}")
+        print(f"  データベース: {db_config.get('database', 'N/A')}")
         
-        print(f"\n選択されたデータベース: {db_type}")
-        
-        # 検出結果を設定に反映
-        config["database"] = db_config
+        print(f"\n使用するデータベース: {db_type}")
         
         logger.info(f"データベースタイプ: {db_config['database_type']}")
-        logger.info(f"サーバー: {db_config.get('server') or db_config.get('host')}")
+        if db_config['database_type'] == 'postgresql':
+            logger.info(f"ホスト: {db_config.get('host', 'N/A')}")
+            logger.info(f"ポート: {db_config.get('port', 'N/A')}")
+        else:
+            logger.info(f"サーバー: {db_config.get('server', 'N/A')}")
         logger.info(f"データベース: {db_config['database']}")
         
         # データベースマネージャー初期化（全体設定を渡す）
-        config["database"] = db_config
-        db_manager = SpecDatabaseManager(config)
+        try:
+            db_manager = SpecDatabaseManager(config)
+        except KeyError as e:
+            logger.error(f"設定ファイルに必要なキーが不足しています: {e}")
+            logger.error("config_spec.jsonの'database'セクションを確認してください")
+            return False
+        except Exception as e:
+            logger.error(f"データベースマネージャー初期化エラー: {e}")
+            return False
         
         # 接続テスト
         if not test_database_connection(db_manager, logger):
