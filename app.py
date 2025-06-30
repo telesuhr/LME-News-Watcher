@@ -1125,6 +1125,44 @@ def debug_database_counts() -> Dict:
         app.logger.error(f"データベース件数確認エラー: {e}")
         return {'success': False, 'error': str(e)}
 
+@eel.expose
+def fix_manual_entry_source() -> Dict:
+    """古い 'Manual Entry' ソースを '手動登録' に更新"""
+    try:
+        app = init_app()
+        
+        with app.db_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # 'Manual Entry'の件数確認
+            cursor.execute("SELECT COUNT(*) FROM news_table WHERE source = 'Manual Entry'")
+            old_count = cursor.fetchone()[0]
+            
+            if old_count == 0:
+                return {
+                    'success': True,
+                    'message': '更新対象の「Manual Entry」データはありません',
+                    'updated_count': 0
+                }
+            
+            # 'Manual Entry' を '手動登録' に更新
+            cursor.execute("UPDATE news_table SET source = '手動登録' WHERE source = 'Manual Entry'")
+            
+            updated_count = cursor.rowcount
+            conn.commit()
+            
+            app.logger.info(f"ソース名更新完了: 'Manual Entry' → '手動登録' ({updated_count}件)")
+            
+            return {
+                'success': True,
+                'message': f'「Manual Entry」を「手動登録」に更新しました',
+                'updated_count': updated_count
+            }
+            
+    except Exception as e:
+        app.logger.error(f"ソース名更新エラー: {e}")
+        return {'success': False, 'error': str(e)}
+
 
 def main():
     """メイン実行関数"""
