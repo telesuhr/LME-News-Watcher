@@ -125,6 +125,9 @@ class SpecDatabaseManager:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
                 
+                # デバッグログ：挿入前の記事情報をログ出力
+                self.logger.info(f"ニュース記事挿入開始: news_id={article.news_id}, title='{article.title[:50]}...', is_manual={article.is_manual}")
+                
                 if self.db_type == "postgresql":
                     sql = """
                         INSERT INTO news_table (
@@ -166,7 +169,14 @@ class SpecDatabaseManager:
                                    source.keywords, source.related_metals, source.is_manual, source.rating);
                     """
                 
-                cursor.execute(sql, (
+                # SQL ServerのBIT型対応
+                if self.db_type == "sqlserver":
+                    is_manual_value = 1 if article.is_manual else 0
+                else:
+                    is_manual_value = article.is_manual
+                
+                # デバッグログ：実行予定のパラメータを出力
+                params = (
                     article.news_id,
                     article.title,
                     article.body,
@@ -178,15 +188,49 @@ class SpecDatabaseManager:
                     article.summary,
                     article.keywords,
                     article.related_metals,
-                    article.is_manual,
+                    is_manual_value,
                     article.rating
-                ))
+                )
+                self.logger.debug(f"実行SQL: {sql}")
+                self.logger.debug(f"パラメータ: news_id={params[0]}, title='{params[1][:30]}...', source='{params[5]}', is_manual={params[11]}")
+                
+                cursor.execute(sql, params)
+                
+                # SQL Serverでの影響行数確認
+                if self.db_type == "sqlserver":
+                    affected_rows = cursor.rowcount
+                    self.logger.info(f"SQL Server MERGE実行完了: 影響行数={affected_rows}")
+                else:
+                    self.logger.info(f"PostgreSQL INSERT実行完了")
+                
+                # 挿入後の確認：実際にデータが保存されたかチェック
+                self._verify_insertion(cursor, article.news_id)
                 
                 return True
                 
         except Exception as e:
             self.logger.error(f"ニュース記事挿入エラー: {e}")
+            self.logger.error(f"挿入失敗記事: news_id={article.news_id}, title='{article.title[:50]}...'")
             return False
+    
+    def _verify_insertion(self, cursor, news_id: str):
+        """挿入確認のためのヘルパーメソッド"""
+        try:
+            if self.db_type == "postgresql":
+                verify_sql = "SELECT news_id, title, is_manual FROM news_table WHERE news_id = %s"
+            else:
+                verify_sql = "SELECT news_id, title, is_manual FROM news_table WHERE news_id = ?"
+            
+            cursor.execute(verify_sql, (news_id,))
+            result = cursor.fetchone()
+            
+            if result:
+                self.logger.info(f"挿入確認成功: news_id={result[0]}, title='{result[1][:30]}...', is_manual={result[2]}")
+            else:
+                self.logger.warning(f"挿入確認失敗: news_id={news_id} がデータベースで見つからない")
+                
+        except Exception as e:
+            self.logger.error(f"挿入確認エラー: {e}")
     
     def insert_news_batch(self, articles: List[NewsArticle]) -> int:
         """ニュース記事一括挿入"""

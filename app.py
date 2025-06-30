@@ -540,22 +540,33 @@ def add_manual_news(news_data: Dict) -> Dict:
             body=news_data['body'],
             publish_time=publish_time,
             acquire_time=datetime.now(),
-            source=news_data.get('source', 'Manual Entry'),
+            source=news_data.get('source', '手動登録'),
             url=news_data.get('url'),
             related_metals=related_metals,
             is_manual=True
         )
         
         # データベース保存
+        app.logger.info(f"手動ニュース登録開始: news_id={article.news_id}, title='{article.title[:30]}...'")
         success = app.db_manager.insert_news_article(article)
         
         if success:
-            app.logger.info(f"手動ニュース登録: {article.news_id}")
+            app.logger.info(f"手動ニュース登録成功: {article.news_id}")
+            
+            # 登録後の確認
+            saved_news = app.db_manager.get_news_by_id(article.news_id)
+            if saved_news:
+                app.logger.info(f"確認取得成功: news_id={saved_news['news_id']}, is_manual={saved_news.get('is_manual', 'N/A')}")
+            else:
+                app.logger.warning(f"確認取得失敗: news_id={article.news_id} が見つからない")
+            
             return {'success': True, 'news_id': article.news_id}
         else:
+            app.logger.error(f"手動ニュース登録失敗: {article.news_id}")
             return {'success': False, 'error': 'データベース保存に失敗しました'}
             
     except Exception as e:
+        app.logger.error(f"手動ニュース登録例外: {e}")
         return {'success': False, 'error': str(e)}
 
 @eel.expose
@@ -1038,6 +1049,80 @@ def mark_all_as_read(filter_conditions: Dict = None) -> Dict:
         }
             
     except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+@eel.expose
+def debug_manual_news_search() -> Dict:
+    """手動ニュース検索のデバッグ"""
+    try:
+        app = init_app()
+        
+        # 手動ニュースのみでフィルタ検索
+        search_filter = NewsSearchFilter()
+        search_filter.is_manual = True
+        search_filter.limit = 10
+        
+        app.logger.info("手動ニュース検索デバッグ開始")
+        results = app.db_manager.search_news(search_filter)
+        app.logger.info(f"手動ニュース検索結果: {len(results)}件")
+        
+        # 結果の詳細をログ出力
+        for i, news in enumerate(results[:3]):  # 最初の3件のみ
+            app.logger.info(f"手動ニュース{i+1}: news_id={news.get('news_id')}, title='{news.get('title', '')[:30]}...', is_manual={news.get('is_manual')}")
+        
+        return {
+            'success': True,
+            'manual_news_count': len(results),
+            'manual_news': results
+        }
+        
+    except Exception as e:
+        app.logger.error(f"手動ニュース検索デバッグエラー: {e}")
+        return {'success': False, 'error': str(e)}
+
+@eel.expose
+def debug_database_counts() -> Dict:
+    """データベース内の件数をデバッグ確認"""
+    try:
+        app = init_app()
+        
+        with app.db_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # 全件数
+            cursor.execute("SELECT COUNT(*) FROM news_table")
+            total_count = cursor.fetchone()[0]
+            
+            # 手動登録件数（SQL Serverの場合）
+            if app.db_manager.db_type == "sqlserver":
+                cursor.execute("SELECT COUNT(*) FROM news_table WHERE is_manual = 1")
+            else:
+                cursor.execute("SELECT COUNT(*) FROM news_table WHERE is_manual = TRUE")
+            manual_count = cursor.fetchone()[0]
+            
+            # Refinitiv件数
+            if app.db_manager.db_type == "sqlserver":
+                cursor.execute("SELECT COUNT(*) FROM news_table WHERE is_manual = 0")
+            else:
+                cursor.execute("SELECT COUNT(*) FROM news_table WHERE is_manual = FALSE")
+            refinitiv_count = cursor.fetchone()[0]
+            
+            # ソース別件数
+            cursor.execute("SELECT source, COUNT(*) FROM news_table GROUP BY source ORDER BY COUNT(*) DESC")
+            source_counts = cursor.fetchall()
+            
+            app.logger.info(f"データベース件数確認 - 総件数: {total_count}, 手動: {manual_count}, Refinitiv: {refinitiv_count}")
+            
+            return {
+                'success': True,
+                'total_count': total_count,
+                'manual_count': manual_count,
+                'refinitiv_count': refinitiv_count,
+                'source_counts': [{'source': row[0], 'count': row[1]} for row in source_counts]
+            }
+            
+    except Exception as e:
+        app.logger.error(f"データベース件数確認エラー: {e}")
         return {'success': False, 'error': str(e)}
 
 
