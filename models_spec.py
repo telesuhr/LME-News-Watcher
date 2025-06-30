@@ -129,27 +129,32 @@ SPEC_DATABASE_SCHEMA = {
     ]
 }
 
-# SQL Server用スキーマ（将来の移行用）
+# SQL Server用スキーマ（Azure SQL Database対応）
 SQLSERVER_SPEC_SCHEMA = {
     "news_table": """
+        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'news_table')
         CREATE TABLE news_table (
             news_id NVARCHAR(255) PRIMARY KEY,
-            title NTEXT NOT NULL,
-            body NTEXT NOT NULL,
+            title NVARCHAR(MAX) NOT NULL,
+            body NVARCHAR(MAX) NOT NULL,
             publish_time DATETIME2 NOT NULL,
             acquire_time DATETIME2 NOT NULL,
-            source NTEXT NOT NULL,
-            url NTEXT,
-            sentiment NTEXT,
-            summary NTEXT,
-            keywords NTEXT,
-            related_metals NTEXT,
+            source NVARCHAR(500) NOT NULL,
+            url NVARCHAR(MAX),
+            sentiment NVARCHAR(50),
+            summary NVARCHAR(MAX),
+            keywords NVARCHAR(MAX),
+            related_metals NVARCHAR(500),
             is_manual BIT DEFAULT 0,
-            rating INTEGER DEFAULT NULL
+            rating INTEGER DEFAULT NULL,
+            is_read BIT DEFAULT 0,
+            read_at DATETIME2 DEFAULT NULL,
+            importance_score INTEGER DEFAULT NULL
         );
     """,
     
     "system_stats": """
+        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'system_stats')
         CREATE TABLE system_stats (
             id INT IDENTITY(1,1) PRIMARY KEY,
             collection_date DATETIME2 NOT NULL,
@@ -164,11 +169,11 @@ SQLSERVER_SPEC_SCHEMA = {
     """,
     
     "indexes": [
-        "CREATE INDEX idx_news_publish_time ON news_table(publish_time DESC);",
-        "CREATE INDEX idx_news_source ON news_table(source);",
-        "CREATE INDEX idx_news_related_metals ON news_table(related_metals);",
-        "CREATE INDEX idx_news_is_manual ON news_table(is_manual);",
-        "CREATE INDEX idx_system_stats_date ON system_stats(collection_date);"
+        "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_news_publish_time') CREATE INDEX idx_news_publish_time ON news_table(publish_time DESC);",
+        "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_news_source') CREATE INDEX idx_news_source ON news_table(source);",
+        "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_news_related_metals') CREATE INDEX idx_news_related_metals ON news_table(related_metals);",
+        "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_news_is_manual') CREATE INDEX idx_news_is_manual ON news_table(is_manual);",
+        "IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_system_stats_date') CREATE INDEX idx_system_stats_date ON system_stats(collection_date);"
     ]
 }
 
