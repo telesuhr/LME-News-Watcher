@@ -58,7 +58,11 @@ class SpecDatabaseManager:
                 'database': db_config.get('database', 'lme_reporting'),
                 'user': db_config.get('user'),
                 'password': db_config.get('password'),
-                'driver': db_config.get('driver', 'ODBC Driver 17 for SQL Server')
+                'driver': db_config.get('driver', 'ODBC Driver 17 for SQL Server'),
+                'trusted_connection': db_config.get('trusted_connection', False),
+                'timeout': db_config.get('timeout', 30),
+                'encrypt': db_config.get('encrypt', True),
+                'trust_server_certificate': db_config.get('trust_server_certificate', False)
             }
     
     @contextmanager
@@ -69,14 +73,35 @@ class SpecDatabaseManager:
             if self.db_type == "postgresql":
                 connection = psycopg2.connect(**self.connection_params)
             elif self.db_type == "sqlserver":
-                conn_str = (
-                    f"DRIVER={{{self.connection_params['driver']}}};"
-                    f"SERVER={self.connection_params['server']};"
-                    f"DATABASE={self.connection_params['database']};"
-                    f"UID={self.connection_params['user']};"
-                    f"PWD={self.connection_params['password']};"
-                )
-                connection = pyodbc.connect(conn_str)
+                conn_str_parts = [
+                    f"DRIVER={{{self.connection_params['driver']}}}",
+                    f"SERVER={self.connection_params['server']}",
+                    f"DATABASE={self.connection_params['database']}"
+                ]
+                
+                # 認証設定
+                if self.connection_params.get('trusted_connection', False):
+                    conn_str_parts.append("Trusted_Connection=yes")
+                else:
+                    conn_str_parts.extend([
+                        f"UID={self.connection_params['user']}",
+                        f"PWD={self.connection_params['password']}"
+                    ])
+                
+                # Azure SQL Database用の追加設定
+                if self.connection_params.get('encrypt', True):
+                    conn_str_parts.append("Encrypt=yes")
+                if not self.connection_params.get('trust_server_certificate', True):
+                    conn_str_parts.append("TrustServerCertificate=no")
+                
+                # タイムアウト設定
+                timeout = self.connection_params.get('timeout', 30)
+                conn_str_parts.append(f"Connection Timeout={timeout}")
+                
+                conn_str = ";" + ";".join(conn_str_parts) + ";"
+                self.logger.debug(f"SQL Server接続文字列: {conn_str.replace(self.connection_params.get('password', ''), '***')}")
+                
+                connection = pyodbc.connect(conn_str, timeout=timeout)
             
             yield connection
             connection.commit()
