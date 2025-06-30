@@ -330,9 +330,11 @@ class NewsSearchFilter:
         if self.is_manual is not None:
             if db_type == "postgresql":
                 conditions.append("is_manual = %s")
+                params.append(self.is_manual)
             else:
+                # SQL ServerのBIT型は1/0で比較
                 conditions.append("is_manual = ?")
-            params.append(self.is_manual)
+                params.append(1 if self.is_manual else 0)
         
         if self.rating is not None:
             if db_type == "postgresql":
@@ -351,9 +353,11 @@ class NewsSearchFilter:
         if self.is_read is not None:
             if db_type == "postgresql":
                 conditions.append("is_read = %s")
+                params.append(self.is_read)
             else:
+                # SQL ServerのBIT型は1/0で比較
                 conditions.append("is_read = ?")
-            params.append(self.is_read)
+                params.append(1 if self.is_read else 0)
         
         where_clause = " AND ".join(conditions) if conditions else "1=1"
         return where_clause, params
