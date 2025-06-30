@@ -99,7 +99,36 @@ class NewsWatcherApp:
         # データベースマネージャー作成（全体設定を渡してURLフィルタリング設定にアクセス）
         full_config = self.config.copy()
         full_config["database"] = db_config
-        return SpecDatabaseManager(full_config)
+        db_manager = SpecDatabaseManager(full_config)
+        
+        # 起動時に古い 'Manual Entry' を '手動登録' に自動修正
+        self._fix_manual_entry_sources(db_manager)
+        
+        return db_manager
+    
+    def _fix_manual_entry_sources(self, db_manager):
+        """起動時に古い 'Manual Entry' ソースを '手動登録' に修正"""
+        try:
+            with db_manager.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # 'Manual Entry'の件数確認
+                cursor.execute("SELECT COUNT(*) FROM news_table WHERE source = 'Manual Entry'")
+                old_count = cursor.fetchone()[0]
+                
+                if old_count > 0:
+                    print(f"古い 'Manual Entry' データを修正中... ({old_count}件)")
+                    
+                    # 'Manual Entry' を '手動登録' に更新
+                    cursor.execute("UPDATE news_table SET source = '手動登録' WHERE source = 'Manual Entry'")
+                    updated_count = cursor.rowcount
+                    
+                    print(f"✓ ソース名更新完了: 'Manual Entry' → '手動登録' ({updated_count}件)")
+                    self.logger.info(f"起動時ソース名修正: 'Manual Entry' → '手動登録' ({updated_count}件)")
+                    
+        except Exception as e:
+            print(f"⚠️ ソース名修正エラー: {e}")
+            self.logger.warning(f"起動時ソース名修正エラー: {e}")
     
     def start_background_polling(self):
         """バックグラウンドポーリング開始（Activeモードのみ）"""
