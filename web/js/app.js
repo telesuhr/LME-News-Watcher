@@ -42,7 +42,10 @@ class NewsWatcher {
         
         
         // 過去ニュース
-        document.getElementById('dateSearchBtn').addEventListener('click', () => this.searchArchive());
+        document.getElementById('dateSearchBtn').addEventListener('click', () => {
+            this.currentPage = 1;  // 新しい検索時はページをリセット
+            this.searchArchive();
+        });
         
         // 手動登録
         document.getElementById('manualNewsForm').addEventListener('submit', (e) => this.submitManualNews(e));
@@ -243,12 +246,13 @@ class NewsWatcher {
                 end_date: endDate,
                 keyword: document.getElementById('archiveKeyword').value,
                 sort_by: document.getElementById('archiveSortFilter').value,
-                page: 1,
+                page: this.currentPage,  // ← 修正: 現在のページを使用
                 per_page: this.newsPerPage
             };
             
             const response = await eel.search_archive(searchParams)();
             this.displayNewsList(response.news, 'archiveList');
+            this.updatePagination(response.total_count, this.currentPage);  // ← 追加: ページネーション更新
             this.updateStatus('アーカイブ検索完了', 'success');
         } catch (error) {
             this.showError('アーカイブ検索に失敗しました: ' + error.message);
@@ -594,6 +598,9 @@ class NewsWatcher {
         
         document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
         document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
+        
+        // ページをリセット
+        this.currentPage = 1;
     }
     
     setupManualTab() {
@@ -942,15 +949,18 @@ class NewsWatcher {
     }
     
     goToPage(page) {
-        console.log(`🔄 ページ移動: ${this.currentPage} → ${page}`);
+        console.log(`🔄 ページ移動: ${this.currentPage} → ${page} (タブ: ${this.currentTab})`);
         this.currentPage = page;
         
         // タブに応じて適切な関数を呼び出し
         if (this.currentTab === 'latest') {
+            console.log(`📄 最新ニュースタブ: ページ${page}を読み込み`);
             this.loadLatestNews();
         } else if (this.currentTab === 'archive') {
+            console.log(`📄 アーカイブタブ: ページ${page}で再検索`);
             this.searchArchive();
         } else {
+            console.log(`📄 検索結果: ページ${page}で再検索`);
             this.performSearch();
         }
     }

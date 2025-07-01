@@ -406,6 +406,11 @@ def get_latest_news(limit: int = 50, offset: int = 0) -> Dict:
     """最新ニュース取得"""
     try:
         app = init_app()
+        
+        # ページング情報をログ出力
+        current_page = (offset // limit) + 1 if limit > 0 else 1
+        app.logger.info(f"📄 最新ニュース取得: limit={limit}, offset={offset}, 推定ページ={current_page}")
+        
         search_filter = NewsSearchFilter()
         search_filter.limit = limit
         search_filter.offset = offset
@@ -428,6 +433,12 @@ def search_news(search_params: Dict) -> Dict:
     """ニュース検索"""
     try:
         app = init_app()
+        
+        # ページング情報をログ出力
+        page = search_params.get('page', 1)
+        per_page = search_params.get('per_page', 50)
+        app.logger.info(f"📄 ニュース検索: page={page}, per_page={per_page}")
+        
         search_filter = NewsSearchFilter()
         
         if search_params.get('keyword'):
@@ -489,6 +500,12 @@ def search_archive(search_params: Dict) -> Dict:
     """アーカイブ検索"""
     try:
         app = init_app()
+        
+        # ページング情報をログ出力
+        page = search_params.get('page', 1)
+        per_page = search_params.get('per_page', 50)
+        app.logger.info(f"📄 アーカイブ検索: page={page}, per_page={per_page}, 期間={search_params.get('start_date')}〜{search_params.get('end_date')}")
+        
         search_filter = NewsSearchFilter()
         
         if search_params.get('start_date'):
@@ -505,8 +522,6 @@ def search_archive(search_params: Dict) -> Dict:
             if sort_by in valid_sorts:
                 search_filter.sort_by = sort_by
         
-        page = search_params.get('page', 1)
-        per_page = search_params.get('per_page', 50)
         search_filter.limit = per_page
         search_filter.offset = (page - 1) * per_page
         
@@ -514,10 +529,13 @@ def search_archive(search_params: Dict) -> Dict:
         news_list = _convert_datetime_to_iso(news_list)
         total_count = app.db_manager.get_news_count(search_filter)
         
+        app.logger.info(f"📄 アーカイブ検索結果: {len(news_list)}件取得, 総件数={total_count}")
+        
         return {
             'success': True,
             'news': news_list,
-            'total_count': total_count
+            'total_count': total_count,
+            'current_page': page
         }
     except Exception as e:
         return {'success': False, 'error': str(e)}
