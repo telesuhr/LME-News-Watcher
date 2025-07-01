@@ -158,24 +158,25 @@ class SpecDatabaseManager:
                         INSERT INTO news_table (
                             news_id, title, body, publish_time, acquire_time, 
                             source, url, sentiment, summary, keywords, 
-                            related_metals, is_manual, rating
+                            related_metals, translation, is_manual, rating
                         ) VALUES (
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                         ) ON CONFLICT (news_id) DO UPDATE SET
                             title = EXCLUDED.title,
                             body = EXCLUDED.body,
                             source = EXCLUDED.source,
                             url = EXCLUDED.url,
                             related_metals = EXCLUDED.related_metals,
+                            translation = EXCLUDED.translation,
                             rating = EXCLUDED.rating
                     """
                 elif self.db_type == "sqlserver":
                     sql = """
                         MERGE news_table AS target
-                        USING (VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)) AS source 
+                        USING (VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)) AS source 
                                (news_id, title, body, publish_time, acquire_time, 
                                 source, url, sentiment, summary, keywords, 
-                                related_metals, is_manual, rating)
+                                related_metals, translation, is_manual, rating)
                         ON target.news_id = source.news_id
                         WHEN MATCHED THEN
                             UPDATE SET title = source.title,
@@ -183,15 +184,16 @@ class SpecDatabaseManager:
                                       source = source.source,
                                       url = source.url,
                                       related_metals = source.related_metals,
+                                      translation = source.translation,
                                       rating = source.rating
                         WHEN NOT MATCHED THEN
                             INSERT (news_id, title, body, publish_time, acquire_time,
                                    source, url, sentiment, summary, keywords,
-                                   related_metals, is_manual, rating)
+                                   related_metals, translation, is_manual, rating)
                             VALUES (source.news_id, source.title, source.body, 
                                    source.publish_time, source.acquire_time, source.source,
                                    source.url, source.sentiment, source.summary, 
-                                   source.keywords, source.related_metals, source.is_manual, source.rating);
+                                   source.keywords, source.related_metals, source.translation, source.is_manual, source.rating);
                     """
                 
                 # SQL ServerのBIT型対応
@@ -213,6 +215,7 @@ class SpecDatabaseManager:
                     article.summary,
                     article.keywords,
                     article.related_metals,
+                    article.translation,
                     is_manual_value,
                     article.rating
                 )
@@ -564,6 +567,10 @@ class SpecDatabaseManager:
                 if analysis_data.get('keywords'):
                     update_fields.append('keywords = %s' if self.db_type == "postgresql" else 'keywords = ?')
                     values.append(analysis_data['keywords'])
+                
+                if analysis_data.get('translation'):
+                    update_fields.append('translation = %s' if self.db_type == "postgresql" else 'translation = ?')
+                    values.append(analysis_data['translation'])
                 
                 if analysis_data.get('importance_score') is not None:
                     # importance_scoreを新しいカラムとして追加する場合

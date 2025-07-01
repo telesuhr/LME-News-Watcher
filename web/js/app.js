@@ -457,7 +457,7 @@ class NewsWatcher {
                         </div>
                         
                         <div id="analysis-view-${news.news_id}" class="analysis-content">
-                            ${news.summary || news.sentiment || news.keywords ? `
+                            ${news.summary || news.sentiment || news.keywords || news.translation ? `
                                 ${news.summary ? `
                                     <div class="analysis-item">
                                         <strong>要約:</strong>
@@ -474,6 +474,14 @@ class NewsWatcher {
                                     <div class="analysis-item">
                                         <strong>キーワード:</strong>
                                         <p>${this.escapeHtml(news.keywords)}</p>
+                                    </div>
+                                ` : ''}
+                                ${news.translation ? `
+                                    <div class="analysis-item">
+                                        <strong>翻訳:</strong>
+                                        <div class="translation-content">
+                                            ${this.escapeHtml(news.translation).replace(/\n/g, '<br>')}
+                                        </div>
                                     </div>
                                 ` : ''}
                             ` : `
@@ -498,6 +506,10 @@ class NewsWatcher {
                             <div class="form-group">
                                 <label>キーワード</label>
                                 <input type="text" id="edit-keywords-${news.news_id}" class="form-input" value="${news.keywords || ''}">
+                            </div>
+                            <div class="form-group">
+                                <label>翻訳</label>
+                                <textarea id="edit-translation-${news.news_id}" class="form-textarea" rows="5">${news.translation || ''}</textarea>
                             </div>
                             <div class="edit-actions">
                                 <button class="btn btn-primary btn-sm" onclick="newsWatcher.saveAnalysisEdit('${news.news_id}')">
@@ -1202,12 +1214,14 @@ class NewsWatcher {
             const summary = document.getElementById(`edit-summary-${newsId}`).value;
             const sentiment = document.getElementById(`edit-sentiment-${newsId}`).value;
             const keywords = document.getElementById(`edit-keywords-${newsId}`).value;
+            const translation = document.getElementById(`edit-translation-${newsId}`).value;
             
             const analysisData = {
                 news_id: newsId,
                 summary: summary,
                 sentiment: sentiment,
-                keywords: keywords
+                keywords: keywords,
+                translation: translation
             };
             
             this.showInfo('分析結果を保存中...');

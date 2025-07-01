@@ -25,6 +25,7 @@ class NewsArticle:
     summary: Optional[str] = None
     keywords: Optional[str] = None
     related_metals: Optional[str] = None
+    translation: Optional[str] = None  # 翻訳結果
     rating: Optional[int] = None
     is_read: bool = False
     read_at: Optional[datetime] = None
@@ -53,6 +54,7 @@ class NewsArticle:
             'summary': self.summary,
             'keywords': self.keywords,
             'related_metals': self.related_metals,
+            'translation': self.translation,
             'is_manual': self.is_manual,
             'rating': self.rating,
             'is_read': self.is_read,
@@ -97,6 +99,7 @@ SPEC_DATABASE_SCHEMA = {
             summary TEXT,
             keywords TEXT,
             related_metals TEXT,
+            translation TEXT,
             is_manual BOOLEAN DEFAULT FALSE,
             rating INTEGER DEFAULT NULL CHECK (rating >= 1 AND rating <= 3),
             is_read BOOLEAN DEFAULT FALSE,
@@ -145,6 +148,7 @@ SQLSERVER_SPEC_SCHEMA = {
             summary NVARCHAR(MAX),
             keywords NVARCHAR(MAX),
             related_metals NVARCHAR(500),
+            translation NVARCHAR(MAX),
             is_manual BIT DEFAULT 0,
             rating INTEGER DEFAULT NULL,
             is_read BIT DEFAULT 0,

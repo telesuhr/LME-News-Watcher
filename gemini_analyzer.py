@@ -25,6 +25,7 @@ class AnalysisResult:
     importance_score: Optional[int] = None
     sentiment_reason: Optional[str] = None
     importance_reason: Optional[str] = None
+    translation: Optional[str] = None  # 翻訳結果
     analysis_time: Optional[datetime] = None
     model_used: Optional[str] = None
     cost_estimate: Optional[float] = None
@@ -216,6 +217,28 @@ class GeminiNewsAnalyzer:
         
         return text
     
+    def _should_translate(self, title: str, body: str) -> bool:
+        """翻訳が必要かどうか判定（英語記事の場合に翻訳）"""
+        text = f"{title} {body}".lower()
+        
+        # 日本語文字が含まれている場合は翻訳不要
+        japanese_chars = re.search(r'[ひらがなカタカナ漢字]', text)
+        if japanese_chars:
+            return False
+        
+        # 英語のキーワードが多い場合は翻訳対象
+        english_keywords = [
+            'copper', 'aluminium', 'aluminum', 'zinc', 'lead', 'nickel', 'tin',
+            'lme', 'london metal exchange', 'commodity', 'metal', 'mining',
+            'price', 'market', 'trading', 'inventory', 'supply', 'demand',
+            'production', 'consumption', 'exports', 'imports', 'china'
+        ]
+        
+        english_count = sum(1 for keyword in english_keywords if keyword in text)
+        
+        # 英語キーワードが3個以上含まれていれば翻訳対象
+        return english_count >= 3
+    
     async def _call_gemini_api(self, prompt: str, use_fallback: bool = False) -> Optional[str]:
         """Gemini API呼び出し"""
         if not self.model:
@@ -346,6 +369,12 @@ class GeminiNewsAnalyzer:
                 importance_prompt = f"{prompts.get('importance', '重要度を評価してください:')}\n\n{text}"
                 importance_response = await self._call_gemini_api(importance_prompt)
                 result.importance_score, result.importance_reason = self._parse_importance_response(importance_response)
+            
+            # 翻訳（英語記事の場合、設定で有効な場合のみ）
+            if self.gemini_config.get("translation_enabled", False) and self._should_translate(title, body):
+                translation_prompt = f"{prompts.get('translation', '日本語に翻訳してください:')}\n\n{text}"
+                result.translation = await self._call_gemini_api(translation_prompt)
+                self.logger.info(f"翻訳完了: {title[:30]}...")
             
             # モデル情報
             result.model_used = self.model.model_name if self.model else None

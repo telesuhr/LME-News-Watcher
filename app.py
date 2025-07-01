@@ -855,7 +855,8 @@ def update_news_analysis(analysis_data: Dict) -> Dict:
         update_data = {
             'summary': analysis_data.get('summary', ''),
             'sentiment': analysis_data.get('sentiment', ''),
-            'keywords': analysis_data.get('keywords', '')
+            'keywords': analysis_data.get('keywords', ''),
+            'translation': analysis_data.get('translation', '')
         }
         
         success = app.db_manager.update_news_analysis(news_id, update_data)
