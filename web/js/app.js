@@ -141,7 +141,7 @@ class NewsWatcher {
         try {
             const response = await eel.get_latest_news(this.newsPerPage, (this.currentPage - 1) * this.newsPerPage)();
             this.displayNewsList(response.news, 'newsList');
-            this.updatePagination(response.total_count, response.current_page);
+            this.updatePagination(response.total_count, this.currentPage);
             this.updateStatus('正常', 'success');
         } catch (error) {
             this.showError('ニュースの読み込みに失敗しました: ' + error.message);
@@ -218,7 +218,7 @@ class NewsWatcher {
             
             const response = await eel.search_news(searchParams)();
             this.displayNewsList(response.news, 'newsList');
-            this.updatePagination(response.total_count, response.current_page);
+            this.updatePagination(response.total_count, this.currentPage);
             this.updateStatus('検索完了', 'success');
         } catch (error) {
             this.showError('検索に失敗しました: ' + error.message);
@@ -903,6 +903,8 @@ class NewsWatcher {
         const totalPages = Math.ceil(totalCount / this.newsPerPage);
         const pagination = document.getElementById('pagination');
         
+        console.log(`📄 ページング更新: 総件数=${totalCount}, 現在ページ=${currentPage}, 総ページ数=${totalPages}`);
+        
         if (totalPages <= 1) {
             pagination.innerHTML = '';
             return;
@@ -940,8 +942,17 @@ class NewsWatcher {
     }
     
     goToPage(page) {
+        console.log(`🔄 ページ移動: ${this.currentPage} → ${page}`);
         this.currentPage = page;
-        this.performSearch();
+        
+        // タブに応じて適切な関数を呼び出し
+        if (this.currentTab === 'latest') {
+            this.loadLatestNews();
+        } else if (this.currentTab === 'archive') {
+            this.searchArchive();
+        } else {
+            this.performSearch();
+        }
     }
     
     updateStatus(message, type = 'success') {

@@ -206,10 +206,29 @@ class RefinitivNewsCollector:
             try:
                 # API制限を考慮して安全な件数に制限
                 safe_count = min(self.config["news_collection"]["max_news_per_query"], 20)
-                headlines = ek.get_news_headlines(
-                    query=query,
-                    count=safe_count
-                )
+                
+                # asyncio競合対策: EIKON API呼び出しを同期的に実行
+                headlines = self._safe_eikon_call(query, safe_count)
+                
+                # デバッグ: API取得結果の詳細ログ
+                if headlines is not None and not headlines.empty:
+                    self.logger.info(f"📡 API取得結果 [{query}]: {len(headlines)}件")
+                    
+                    # 最新と最古の記事の日時を確認
+                    if 'versionCreated' in headlines.columns:
+                        dates = pd.to_datetime(headlines['versionCreated'], errors='coerce')
+                        if not dates.empty:
+                            latest = dates.max()
+                            oldest = dates.min()
+                            self.logger.info(f"  📅 記事日時範囲: {oldest} ～ {latest}")
+                    
+                    # 記事のタイトルサンプル（上位3件）
+                    for i, (idx, row) in enumerate(headlines.head(3).iterrows()):
+                        title = str(row.get('text', ''))[:50]
+                        created = row.get('versionCreated', 'N/A')
+                        self.logger.info(f"  📰 [{i+1}] {created}: {title}...")
+                else:
+                    self.logger.warning(f"❌ API取得結果 [{query}]: 0件またはエラー")
                 
                 # クライアントサイドで日付フィルタリング
                 if headlines is not None and not headlines.empty:
@@ -358,8 +377,87 @@ class RefinitivNewsCollector:
             self.logger.info(f"バックグラウンド収集モード: 過去{hours_back}時間のニュースを収集")
         
         start_date = end_date - timedelta(hours=hours_back)
+        
+        # デバッグ情報追加
+        self.logger.info(f"🔍 収集期間詳細:")
+        self.logger.info(f"  開始時刻: {start_date.strftime('%Y-%m-%d %H:%M:%S')}")
+        self.logger.info(f"  終了時刻: {end_date.strftime('%Y-%m-%d %H:%M:%S')}")
+        self.logger.info(f"  期間: {hours_back}時間")
+        
         return start_date, end_date
     
+    def _safe_eikon_call(self, query: str, count: int, max_retries: int = 3):
+        """
+        asyncio競合対策: 安全なEIKON API呼び出し
+        
+        Args:
+            query: 検索クエリ
+            count: 取得件数
+            max_retries: 最大リトライ回数
+        
+        Returns:
+            ヘッドラインDataFrame
+        """
+        import threading
+        import queue
+        import time
+        
+        for attempt in range(max_retries):
+            try:
+                # スレッド間でのデータ受け渡し用キュー
+                result_queue = queue.Queue()
+                exception_queue = queue.Queue()
+                
+                def eikon_worker():
+                    """別スレッドでEIKON API呼び出し"""
+                    try:
+                        # 新しいスレッドでasyncioイベントループと分離
+                        headlines = ek.get_news_headlines(
+                            query=query,
+                            count=count
+                        )
+                        result_queue.put(headlines)
+                    except Exception as e:
+                        exception_queue.put(e)
+                
+                # 別スレッドで実行
+                worker_thread = threading.Thread(target=eikon_worker)
+                worker_thread.daemon = True
+                worker_thread.start()
+                
+                # タイムアウト付きで結果待機
+                worker_thread.join(timeout=30)  # 30秒タイムアウト
+                
+                if worker_thread.is_alive():
+                    self.logger.warning(f"EIKON API呼び出しタイムアウト: {query} (試行 {attempt + 1})")
+                    continue
+                
+                # 結果取得
+                if not result_queue.empty():
+                    headlines = result_queue.get()
+                    self.logger.debug(f"EIKON API呼び出し成功: {query}")
+                    return headlines
+                elif not exception_queue.empty():
+                    exception = exception_queue.get()
+                    self.logger.warning(f"EIKON API呼び出しエラー: {query} - {exception} (試行 {attempt + 1})")
+                    if attempt < max_retries - 1:
+                        time.sleep(2 ** attempt)  # 指数バックオフ
+                        continue
+                    else:
+                        raise exception
+                else:
+                    self.logger.warning(f"EIKON API呼び出し結果不明: {query} (試行 {attempt + 1})")
+                    
+            except Exception as e:
+                self.logger.error(f"EIKON API呼び出し失敗: {query} - {e} (試行 {attempt + 1})")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+                    continue
+                else:
+                    return None
+        
+        return None
+
     def _is_safe_query(self, query: str) -> bool:
         """
         クエリが安全（datetime64エラーを起こさない）かどうかをチェック
@@ -479,7 +577,12 @@ class RefinitivNewsCollector:
         """
         if headlines.empty:
             return headlines
-            
+        
+        # デバッグ: フィルタリング前の状況
+        self.logger.info(f"🔍 日付フィルタリング開始:")
+        self.logger.info(f"  対象期間: {start_date.strftime('%Y-%m-%d %H:%M')} ～ {end_date.strftime('%Y-%m-%d %H:%M')}")
+        self.logger.info(f"  フィルタリング前件数: {len(headlines)}件")
+        
         try:
             # 日付カラムを特定
             date_column = None
@@ -489,7 +592,8 @@ class RefinitivNewsCollector:
                     break
             
             if date_column is None:
-                self.logger.debug("日付カラムが見つからないため、フィルタリングをスキップ")
+                self.logger.warning("❌ 日付カラムが見つからないため、フィルタリングをスキップ")
+                self.logger.info(f"  利用可能カラム: {list(headlines.columns)}")
                 return headlines
             
             # 日付をdatetimeに変換（最適化版）
@@ -508,10 +612,15 @@ class RefinitivNewsCollector:
                     # エラーの場合は含める
                     filtered_headlines.append(row)
             
-            if filtered_headlines:
-                return pd.DataFrame(filtered_headlines)
-            else:
-                return pd.DataFrame()
+            result_df = pd.DataFrame(filtered_headlines) if filtered_headlines else pd.DataFrame()
+            
+            # デバッグ: フィルタリング結果
+            self.logger.info(f"✅ 日付フィルタリング完了:")
+            self.logger.info(f"  フィルタリング後件数: {len(result_df)}件")
+            if len(result_df) == 0:
+                self.logger.warning("⚠️  指定期間内のニュースが見つかりませんでした")
+            
+            return result_df
                 
         except Exception as e:
             self.logger.debug(f"日付フィルタリング処理エラー: {e}")
