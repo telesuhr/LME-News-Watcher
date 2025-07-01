@@ -191,7 +191,7 @@ class RefinitivNewsCollector:
         
         return None
     
-    def _get_news_by_query(self, query: str, start_date: datetime, end_date: datetime) -> List[Dict]:
+    def _get_news_by_query(self, query: str, start_date: datetime, end_date: datetime, collection_mode: str = "background") -> List[Dict]:
         """クエリによるニュース取得 - datetime64エラー完全対応版"""
         try:
             self.logger.debug(f"ニュース取得開始: {query}")
@@ -204,8 +204,15 @@ class RefinitivNewsCollector:
             # datetime64エラー対策：日付パラメータを使わずに取得
             # EIKON APIの日付パラメータがdatetime64エラーの根本原因のため完全に回避
             try:
-                # API制限を考慮して安全な件数に制限
-                safe_count = min(self.config["news_collection"]["max_news_per_query"], 20)
+                # API制限を考慮して適切な件数に設定（手動収集時は多めに取得）
+                max_per_query = self.config["news_collection"]["max_news_per_query"]
+                if collection_mode == "manual":
+                    # 手動収集時は最新ニュースを確実に取得するため多めに
+                    safe_count = min(max_per_query, 100)
+                    self.logger.debug(f"手動収集モード: {safe_count}件取得予定")
+                else:
+                    safe_count = min(max_per_query, 50)
+                    self.logger.debug(f"バックグラウンド収集モード: {safe_count}件取得予定")
                 
                 # asyncio競合対策: EIKON API呼び出しを同期的に実行
                 headlines = self._safe_eikon_call(query, safe_count)
@@ -368,9 +375,9 @@ class RefinitivNewsCollector:
         end_date = datetime.now()
         
         if collection_mode == "manual":
-            # 手動収集の場合は短い期間を使用
+            # 手動収集の場合は短い期間を使用（最新ニュースを確実に取得）
             hours_back = self.config["news_collection"].get("manual_collection_period_hours", 2)
-            self.logger.info(f"手動収集モード: 過去{hours_back}時間のニュースを収集")
+            self.logger.info(f"手動収集モード: 過去{hours_back}時間のニュースを収集（最新ニュース重視）")
         else:
             # バックグラウンド収集の場合は通常期間
             hours_back = self.config["news_collection"]["collection_period_hours"]
@@ -618,7 +625,11 @@ class RefinitivNewsCollector:
             self.logger.info(f"✅ 日付フィルタリング完了:")
             self.logger.info(f"  フィルタリング後件数: {len(result_df)}件")
             if len(result_df) == 0:
-                self.logger.warning("⚠️  指定期間内のニュースが見つかりませんでした")
+                self.logger.warning("⚠️  指定期間内のニュースが見つかりませんでした - より多くの記事を取得するか期間を拡大してください")
+                # フィルタリング条件が厳しすぎる場合の対策：少なくとも最新の記事を残す
+                if not headlines.empty:
+                    self.logger.info("🔄 フィルタリングが厳しすぎるため、最新の記事を残します")
+                    return headlines.head(10)  # 最新10件を保持
             
             return result_df
                 
@@ -784,7 +795,7 @@ class RefinitivNewsCollector:
                         continue
                     
                     try:
-                        news_items = self._get_news_by_query(optimized_query, start_date, end_date)
+                        news_items = self._get_news_by_query(optimized_query, start_date, end_date, collection_mode)
                         all_news.extend(news_items)
                     except Exception:
                         category_failed_count += 1

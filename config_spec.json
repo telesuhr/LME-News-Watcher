@@ -15,7 +15,7 @@
   "news_collection": {
     "polling_interval_minutes": 5,
     "collection_period_hours": 24,
-    "manual_collection_period_hours": 6,
+    "manual_collection_period_hours": 2,
     "max_news_per_query": 100,
     "api_rate_limit_delay": 2.0,
     "query_interval": 1.5,
